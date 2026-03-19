@@ -2,6 +2,8 @@
 
 IAM 사용자별 Amazon Bedrock API 비용을 모니터링하고, 설정된 임계값에 도달하면 Claude Code 사용을 자동 차단하는 플러그인입니다.
 
+> 처음이신가요? [초보자 가이드](docs/beginners-guide.md)에서 용어 설명, 비용 계산 방식, FAQ를 확인하세요.
+
 ## 사용법
 
 ### 현재 비용 확인
