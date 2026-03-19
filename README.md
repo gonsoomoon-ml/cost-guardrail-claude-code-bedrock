@@ -2,6 +2,30 @@
 
 IAM 사용자별 Amazon Bedrock API 비용을 모니터링하고, 설정된 임계값에 도달하면 Claude Code 사용을 자동 차단하는 플러그인입니다.
 
+## 사용법
+
+### 현재 비용 확인
+```
+/cost-guardrail:cost-status
+```
+
+![cost-status 실행 예시](img/cost-status.png)
+
+### 설정 조회/변경
+```
+/cost-guardrail:cost-config show
+/cost-guardrail:cost-config set threshold_usd 100
+/cost-guardrail:cost-config set check_interval 5
+```
+
+![cost-config 실행 예시](img/cost-config.png)
+
+### 임계값 초과 시 차단
+
+비용이 임계값에 도달하면 Claude Code 사용이 자동으로 차단됩니다.
+
+![임계값 초과 시 차단 화면](img/block_claude.png)
+
 ## 아키텍처
 
 ### 구성 요소
@@ -214,24 +238,6 @@ claude plugin validate /path/to/cost-guardrail
 | `default_input_per_1k` | 0.003 | pricing에 없는 모델의 기본 입력 단가 |
 | `default_output_per_1k` | 0.015 | pricing에 없는 모델의 기본 출력 단가 |
 
-## 사용법
-
-### 현재 비용 확인
-```
-/cost-guardrail:cost-status
-```
-
-![cost-status 실행 예시](img/cost-status.png)
-
-### 설정 조회/변경
-```
-/cost-guardrail:cost-config show
-/cost-guardrail:cost-config set threshold_usd 100
-/cost-guardrail:cost-config set check_interval 5
-```
-
-![cost-config 실행 예시](img/cost-config.png)
-
 ## 동작 방식
 
 1. **SessionStart** — 세션 시작 시 항상 비용 확인 (캐시 바이패스)
@@ -239,8 +245,6 @@ claude plugin validate /path/to/cost-guardrail
 3. CloudWatch Logs Insights로 현재 IAM 사용자의 Bedrock 토큰 사용량 조회
 4. 토큰 수 (input + cache read + cache write + output) × 모델별 단가로 비용 계산
 5. 비용 >= 임계값 → exit 2 (hard block), 비용 < 임계값 → exit 0 (허용)
-
-![임계값 초과 시 차단 화면](img/block_claude.png)
 
 ### 플러그인 훅 vs settings.json 훅
 
