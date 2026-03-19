@@ -86,3 +86,49 @@ A: `/tmp/` 파일이 `$USER` 환경변수로 구분되므로 각자 독립적으
 
 **Q: Fail-open이면 비용 초과를 놓칠 수 있지 않나요?**
 A: 네, 일시적으로 가능합니다. 하지만 AWS 장애 때 모든 개발자가 차단되는 것보다, 일시적 초과 후 다음 확인에서 차단하는 것이 더 나은 정책이라는 설계 판단입니다.
+
+## 마켓플레이스 배포 방식
+
+Claude Code 플러그인은 세 가지 방식으로 배포할 수 있습니다:
+
+| 방식 | 설명 | 사용자 설치 방법 |
+|------|------|-----------------|
+| **Official marketplace** | `anthropics/claude-plugins-official` — Anthropic이 관리, PR 승인 필요할 가능성 높음 | `claude plugin install cost-guardrail` |
+| **Your own GitHub marketplace** | 자신의 GitHub repo를 marketplace로 공개 — 승인 불필요 | `claude plugin marketplace add your-org/your-marketplace` → `claude plugin install cost-guardrail` |
+| **Local marketplace** | 로컬 디렉토리 기반 — 개발/테스트용 | `claude plugin marketplace add /path/...` |
+
+### 마켓플레이스 repo 구조
+
+GitHub marketplace를 직접 만들려면 다음 구조가 필요합니다:
+
+```
+your-marketplace/
+├── .claude-plugin/
+│   └── marketplace.json        ← 플러그인 목록 정의
+└── plugins/
+    └── cost-guardrail/         ← 플러그인 파일들
+        ├── .claude-plugin/
+        │   └── plugin.json
+        ├── commands/
+        ├── hooks/
+        ├── skills/
+        └── config.json
+```
+
+`marketplace.json` 예시:
+```json
+{
+  "name": "my-plugins",
+  "description": "Custom Claude Code plugins",
+  "owner": { "name": "your-org" },
+  "plugins": [
+    {
+      "name": "cost-guardrail",
+      "description": "Per-user Bedrock cost monitoring with automatic usage blocking",
+      "source": "./plugins/cost-guardrail"
+    }
+  ]
+}
+```
+
+> **참고:** 플러그인 소스코드 repo와 마켓플레이스 repo는 별도로 관리하는 것을 권장합니다. 하나의 repo가 `plugin.json`과 `marketplace.json`을 동시에 가질 수 없습니다.
