@@ -1,0 +1,27 @@
+{
+  "description": "Check Bedrock cost per IAM user and block when threshold exceeded",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/check-cost.sh --event session_start",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/check-cost.sh --event prompt_submit",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

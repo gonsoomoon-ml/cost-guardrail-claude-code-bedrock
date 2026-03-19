@@ -1,0 +1,8 @@
+{
+  "name": "cost-guardrail",
+  "version": "1.0.0",
+  "description": "Per-user Bedrock cost monitoring with automatic usage blocking when spending threshold is reached",
+  "author": {
+    "name": "cost-guardrail-team"
+  }
+}
