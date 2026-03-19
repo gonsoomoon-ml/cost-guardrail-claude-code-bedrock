@@ -30,6 +30,18 @@ config.json                   # Threshold, pricing, settings
 - **Counter-based throttling**: `UserPromptSubmit` only queries CloudWatch every Nth prompt (default 10). Counter stored in `/tmp/claude-cost-guardrail-${USER}-counter`.
 - **Log group naming**: `aws/` prefix is reserved by AWS. Use `bedrock/model-invocations`.
 
+## Exit Code Semantics (check-cost.sh)
+
+- `exit 0` — allow usage (also used for all error/fail-open paths)
+- `exit 2` — hard block (only when cost >= threshold, never in `report` mode)
+- Blocking only works from `~/.claude/settings.json` hooks, not from plugin `hooks.json`
+
+## Runtime State
+
+- Counter: `/tmp/claude-cost-guardrail-${USER}-counter` (integer, resets each session)
+- Cache: `/tmp/claude-cost-guardrail-${USER}-cache.json` (cost + timestamp, 5-min TTL)
+- `CLAUDE_PLUGIN_ROOT` env var — set by Claude Code plugin loader, resolves to repo root (where `.claude-plugin/` lives). Used in hooks.json commands and command .md files.
+
 ## Testing
 
 ```bash
@@ -68,3 +80,8 @@ Models not in pricing table use `default_*_per_1k` values. Pricing is manually m
 - Bedrock Model Invocation Logging enabled → CloudWatch Logs
 - AWS CLI v2 with permissions: `logs:StartQuery`, `logs:GetQueryResults`, `sts:GetCallerIdentity`
 - jq, bc installed
+
+## Notes
+
+- README.md is written in Korean. Keep it in Korean when editing.
+- Design spec lives at `docs/superpowers/specs/2026-03-19-cost-guardrail-plugin-design.md` — consult for architectural rationale.

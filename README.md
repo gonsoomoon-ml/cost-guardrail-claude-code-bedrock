@@ -2,6 +2,111 @@
 
 IAM 사용자별 Amazon Bedrock API 비용을 모니터링하고, 설정된 임계값에 도달하면 Claude Code 사용을 자동 차단하는 플러그인입니다.
 
+## 아키텍처
+
+### 구성 요소
+
+```mermaid
+graph TB
+    subgraph "Claude Code"
+        CC[Claude Code CLI]
+        SJ["~/.claude/settings.json<br/>(hooks 등록 — 차단 실행)"]
+    end
+
+    subgraph "cost-guardrail 플러그인"
+        PJ[".claude-plugin/plugin.json"]
+        HJ["hooks/hooks.json"]
+        CS["hooks/check-cost.sh"]
+        CF["config.json<br/>(임계값, 모델별 단가)"]
+        CMD1["/cost-status"]
+        CMD2["/cost-config"]
+        SK["skills/cost-awareness"]
+    end
+
+    subgraph "로컬 상태 (/tmp/)"
+        CTR["counter 파일<br/>(N번째 프롬프트 추적)"]
+        CACHE["cache.json<br/>(비용 캐시, 5분 TTL)"]
+    end
+
+    subgraph "AWS"
+        STS["STS<br/>(IAM 사용자 식별)"]
+        CW["CloudWatch Logs Insights<br/>(Bedrock 토큰 사용량 조회)"]
+        BR["Bedrock Model<br/>Invocation Logging"]
+    end
+
+    CC -->|"SessionStart / UserPromptSubmit"| SJ
+    SJ -->|"bash check-cost.sh"| CS
+    CS --> CF
+    CS --> CTR
+    CS --> CACHE
+    CS -->|"sts:GetCallerIdentity"| STS
+    CS -->|"logs:StartQuery / GetQueryResults"| CW
+    BR -->|"로그 기록"| CW
+    CMD1 -->|"--event report"| CS
+    CMD2 --> CF
+
+    style CS fill:#f9a825,color:#000
+    style SJ fill:#e53935,color:#fff
+    style CW fill:#1565c0,color:#fff
+```
+
+### 비용 확인 흐름 (Sequence Diagram)
+
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant CC as Claude Code
+    participant SH as check-cost.sh
+    participant TMP as /tmp/ (counter, cache)
+    participant AWS as AWS (STS + CloudWatch)
+
+    Note over CC: SessionStart
+    CC->>SH: --event session_start
+    SH->>TMP: counter = 0 (초기화)
+    SH->>AWS: sts get-caller-identity
+    AWS-->>SH: IAM User ARN
+    SH->>AWS: logs start-query (토큰 사용량)
+    loop 최대 5회, 3초 간격
+        SH->>AWS: logs get-query-results
+        AWS-->>SH: 쿼리 상태
+    end
+    AWS-->>SH: 모델별 토큰 수
+    SH->>SH: 비용 계산 (토큰 × 모델별 단가)
+    SH->>TMP: cache.json 저장
+    alt 비용 >= 임계값
+        SH-->>CC: exit 2 (BLOCKED)
+        CC-->>U: ❌ 사용 차단
+    else 비용 < 임계값
+        SH-->>CC: exit 0 (허용)
+        CC-->>U: ✅ 정상 사용
+    end
+
+    Note over CC: UserPromptSubmit (매 프롬프트)
+    U->>CC: 프롬프트 입력
+    CC->>SH: --event prompt_submit
+    SH->>TMP: counter 읽기 & 증가
+    alt counter < check_interval (기본 10)
+        SH->>TMP: counter 저장
+        SH-->>CC: exit 0 (스킵, 비용 확인 안 함)
+    else counter >= check_interval
+        SH->>TMP: counter = 0 (리셋)
+        SH->>TMP: cache 확인 (5분 이내?)
+        alt 캐시 유효
+            TMP-->>SH: 캐시된 비용
+        else 캐시 만료
+            SH->>AWS: CloudWatch 쿼리 실행
+            AWS-->>SH: 토큰 사용량
+            SH->>SH: 비용 계산
+            SH->>TMP: cache.json 갱신
+        end
+        alt 비용 >= 임계값
+            SH-->>CC: exit 2 (BLOCKED)
+        else 비용 < 임계값
+            SH-->>CC: exit 0 (허용)
+        end
+    end
+```
+
 ## 사전 요구사항
 
 - **Bedrock Model Invocation Logging** 활성화 (CloudWatch Logs로 출력)
@@ -106,12 +211,16 @@ claude plugin validate /path/to/cost-guardrail
 /cost-guardrail:cost-status
 ```
 
+![cost-status 실행 예시](img/cost-status.png)
+
 ### 설정 조회/변경
 ```
 /cost-guardrail:cost-config show
 /cost-guardrail:cost-config set threshold_usd 100
 /cost-guardrail:cost-config set check_interval 5
 ```
+
+![cost-config 실행 예시](img/cost-config.png)
 
 ## 동작 방식
 
@@ -120,6 +229,8 @@ claude plugin validate /path/to/cost-guardrail
 3. CloudWatch Logs Insights로 현재 IAM 사용자의 Bedrock 토큰 사용량 조회
 4. 토큰 수 (input + cache read + cache write + output) × 모델별 단가로 비용 계산
 5. 비용 >= 임계값 → exit 2 (hard block), 비용 < 임계값 → exit 0 (허용)
+
+![임계값 초과 시 차단 화면](img/block_claude.png)
 
 ### 플러그인 훅 vs settings.json 훅
 
