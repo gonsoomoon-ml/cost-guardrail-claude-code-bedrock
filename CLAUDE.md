@@ -96,6 +96,11 @@ Models not in pricing table use `default_*_per_1k` values. Pricing is manually m
 - README.md is written in Korean. Keep it in Korean when editing.
 - Design spec lives at `docs/superpowers/specs/2026-03-19-cost-guardrail-plugin-design.md` — consult for architectural rationale.
 
+## Repositories
+
+- Source: https://github.com/gonsoomoon-ml/cost-guardrail-claude-code-bedrock
+- Marketplace: https://github.com/gonsoomoon-ml/bedrock-cost-guardrail
+
 ## Release Workflow
 
 To publish a new version to the marketplace repo:
