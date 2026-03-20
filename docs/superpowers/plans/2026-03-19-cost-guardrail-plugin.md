@@ -57,7 +57,7 @@ mkdir -p cost-guardrail/hooks
   "version": "1.0.0",
   "description": "Per-user Bedrock cost monitoring with automatic usage blocking when spending threshold is reached",
   "author": {
-    "name": "cost-guardrail-team"
+    "name": "gonsoomoon-ml"
   }
 }
 ```

@@ -28,7 +28,7 @@ Change `"name": "cost-guardrail"` to `"name": "bedrock-cost-guardrail"` in `.cla
   "version": "1.0.0",
   "description": "Per-user Bedrock cost monitoring with automatic usage blocking when spending threshold is reached",
   "author": {
-    "name": "cost-guardrail-team"
+    "name": "gonsoomoon-ml"
   }
 }
 ```
@@ -268,7 +268,7 @@ Create `~/bedrock-cost-guardrail/.claude-plugin/marketplace.json`:
 {
   "name": "bedrock-cost-guardrail",
   "description": "Per-user Bedrock cost monitoring with automatic usage blocking",
-  "owner": { "name": "<org>" },
+  "owner": { "name": "gonsoomoon-ml" },
   "plugins": [
     {
       "name": "bedrock-cost-guardrail",
@@ -370,7 +370,7 @@ Create `~/bedrock-cost-guardrail/install.sh`:
 # install.sh — One-command installer for bedrock-cost-guardrail plugin
 set -euo pipefail
 
-REPO_URL="https://github.com/<org>/bedrock-cost-guardrail.git"
+REPO_URL="https://github.com/gonsoomoon-ml/bedrock-cost-guardrail.git"
 INSTALL_DIR="$HOME/.claude/plugins/bedrock-cost-guardrail"
 PLUGIN_PATH="$INSTALL_DIR/plugins/bedrock-cost-guardrail"
 SETTINGS_FILE="$HOME/.claude/settings.json"
@@ -489,13 +489,13 @@ Claude Code plugin that monitors per-IAM-user Amazon Bedrock API costs and block
 ## Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/<org>/bedrock-cost-guardrail/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/gonsoomoon-ml/bedrock-cost-guardrail/main/install.sh | bash
 ```
 
 Or clone and run manually:
 
 ```bash
-git clone https://github.com/<org>/bedrock-cost-guardrail.git ~/.claude/plugins/bedrock-cost-guardrail
+git clone https://github.com/gonsoomoon-ml/bedrock-cost-guardrail.git ~/.claude/plugins/bedrock-cost-guardrail
 bash ~/.claude/plugins/bedrock-cost-guardrail/install.sh
 ```
 
@@ -547,7 +547,7 @@ bash ~/.claude/plugins/bedrock-cost-guardrail/install.sh
 
 ## Source
 
-Development repo and detailed documentation: [cost-guardrail-claude-code-bedrock](https://github.com/<org>/cost-guardrail-claude-code-bedrock)
+Development repo and detailed documentation: [cost-guardrail-claude-code-bedrock](https://github.com/gonsoomoon-ml/cost-guardrail-claude-code-bedrock)
 ```
 
 - [ ] **Step 2: Commit**
