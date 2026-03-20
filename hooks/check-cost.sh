@@ -41,7 +41,7 @@ fi
 THRESHOLD_USD=$(jq -r '.threshold_usd // 50' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
 PERIOD=$(jq -r '.period // "monthly"' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
 CHECK_INTERVAL=$(jq -r '.check_interval // 10' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-LOG_GROUP=$(jq -r '.log_group // "aws/bedrock/model-invocations"' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
+LOG_GROUP=$(jq -r '.log_group // "bedrock/model-invocations"' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
 TIMEZONE=$(jq -r '.timezone // "UTC"' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
 DEFAULT_INPUT=$(jq -r '.default_input_per_1k // 0.003' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
 DEFAULT_OUTPUT=$(jq -r '.default_output_per_1k // 0.015' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
