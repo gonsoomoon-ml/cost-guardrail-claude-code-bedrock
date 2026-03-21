@@ -292,6 +292,7 @@ Platform: linux (aarch64)
 ```bash
 git clone https://github.com/gonsoomoon-ml/bedrock-cost-guardrail.git
 cd bedrock-cost-guardrail
+export AWS_REGION=<관리자에게 확인>    # 예: us-east-1, us-west-2, ap-northeast-2
 bash install.sh
 ```
 
