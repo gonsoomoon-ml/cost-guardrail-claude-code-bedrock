@@ -513,6 +513,10 @@ Status: Active
 현재 비용보다 낮은 값으로 직원 임계값을 설정합니다 (예: 비용이 $210이면 $100으로):
 
 ```bash
+# 소스 저장소로 이동
+cd /path/to/cost-guardrail-claude-code-bedrock
+# 예시 (실제 경로): cd /home/ubuntu/cost-guardrail-claude-code-bedrock
+
 # 직원 임계값 변경
 vi admin/config.dist.json    # threshold_usd를 100으로 변경
 
@@ -557,6 +561,10 @@ claude
 ### 13.4. 임계값 복원
 
 ```bash
+# 소스 저장소로 이동
+cd /path/to/cost-guardrail-claude-code-bedrock
+# 예시 (실제 경로): cd /home/ubuntu/cost-guardrail-claude-code-bedrock
+
 # 임계값을 원래 값으로 복원
 vi admin/config.dist.json    # threshold_usd를 180으로 변경
 
