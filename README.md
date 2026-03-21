@@ -44,7 +44,7 @@ bash scripts/release.sh /path/to/bedrock-cost-guardrail
 /bedrock-cost-guardrail:cost-status
 ```
 
-![cost-status 실행 예시](img/cost-status.png)
+![cost-status 실행 예시](img/bedrock-cost-status.png)
 
 ### 5. 임계값 초과 시
 
@@ -61,7 +61,7 @@ bash scripts/release.sh /path/to/bedrock-cost-guardrail
 
 > **참고:** `threshold_usd`, `progressive` 등 정책 설정은 `admin/config.admin.json`(관리자) 또는 `admin/config.dist.json`(직원 기본값)을 직접 편집하세요.
 
-![cost-config 실행 예시](img/cost-config.png)
+![cost-config 실행 예시](img/bedrock-cost-configure.png)
 
 ## 아키텍처
 
