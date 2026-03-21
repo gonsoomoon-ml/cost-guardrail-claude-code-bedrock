@@ -1,5 +1,5 @@
 {
-  "threshold_usd": 150,
+  "threshold_usd": 180,
   "period": "monthly",
   "check_interval": 10,
   "timezone": "UTC",
