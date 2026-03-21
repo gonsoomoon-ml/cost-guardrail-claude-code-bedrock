@@ -593,3 +593,49 @@ bash scripts/uninstall.sh
 ```
 
 settings.json 훅 제거, 플러그인 디렉토리 삭제, `/tmp/` 임시 파일 정리를 자동으로 처리합니다.
+
+## 15. 확장 아키텍처 (사용자 규모별)
+
+현재 구현(CloudWatch Logs Insights 직접 조회)은 소규모 팀에 적합합니다. 사용자 수가 늘어나면 세션 시작 지연과 비용이 급격히 증가합니다.
+
+### 15.1. 현재 구현의 한계
+
+- **세션 시작 시 ~15초 지연**: CloudWatch Logs Insights 쿼리 실행 시간
+- **동시 쿼리 제한**: AWS 계정당 기본 20개 — 500명이 동시 접속하면 나머지 480명은 대기
+- **N² 비용 구조**: 모든 쿼리가 전체 로그를 스캔 (identity.arn 인덱스 없음) — 사용자 수 증가 시 스캔 비용 급증
+
+### 15.2. 규모별 권장 아키텍처
+
+| 규모 | 아키텍처 | 세션 시작 지연 | 월 비용 (AWS) |
+|------|---------|--------------|-------------|
+| ≤ 50명 | CloudWatch 직접 조회 (현재) | ~15초 | < $50 |
+| ~500명 | Lambda + S3 | < 1초 | ~$180 |
+| ~4,000명 | Lambda + DynamoDB + Athena | < 10ms | ~$130 |
+
+### 15.3. Tier 2a — Lambda + S3 (~500명)
+
+```
+EventBridge (5분 주기)
+  → Lambda: 전체 사용자 CW 쿼리 1회 실행 → 사용자별 비용 JSON → S3 업로드
+check-cost.sh: aws s3 cp → jq로 ARN 조회 → <500ms
+```
+
+- **핵심**: 500명의 개별 쿼리 → Lambda 1회 쿼리로 통합
+- **config.json 추가 필드**: `"cost_source": "s3"`, `"s3_bucket": "..."`, `"s3_key": "..."`
+
+### 15.4. Tier 2b — Lambda + DynamoDB + Athena (~4,000명)
+
+```
+EventBridge (5분 주기)
+  → Lambda: Athena로 S3 Parquet 로그 쿼리 → 사용자별 비용 → DynamoDB 배치 쓰기
+check-cost.sh: aws dynamodb get-item → ARN 조회 → <10ms
+```
+
+- **핵심**: CW Logs Insights 대신 Athena + S3 Parquet — 스캔 비용 ~10배 절감
+- **config.json 추가 필드**: `"cost_source": "dynamodb"`, `"dynamodb_table": "..."`
+
+### 15.5. CloudWatch Custom Metrics를 사용하지 않는 이유
+
+- Metric Filter는 값 추출만 가능 — 가격 × 토큰 계산 불가
+- 모델별 차원 없이는 비용 부정확 (Opus는 Sonnet보다 5배 비쌈)
+- 모델별 차원 적용 시: 4,000명 × 3모델 × 4토큰 = 48,000개 메트릭 → 월 $6,800
