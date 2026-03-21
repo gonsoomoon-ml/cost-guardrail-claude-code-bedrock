@@ -4,7 +4,9 @@
 #
 # Reverses everything install.sh did:
 #   1. Remove cost-guardrail hooks from ~/.claude/settings.json
-#   2. Remove plugin directory
+#   2. Remove plugin directory (~/.claude/plugins/...)
+#   3. Clean up temp files
+#   4. Remove the cloned repo (where this script lives)
 #
 # Usage:
 #   bash uninstall.sh
@@ -13,6 +15,7 @@ set -euo pipefail
 
 INSTALL_DIR="$HOME/.claude/plugins/bedrock-cost-guardrail"
 SETTINGS_FILE="$HOME/.claude/settings.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log() { echo "[uninstall] $1"; }
 
@@ -52,6 +55,15 @@ fi
 log "Cleaning up temp files..."
 rm -f /tmp/claude-cost-guardrail-* 2>/dev/null || true
 echo "  [DONE] temp files removed"
+
+# --- Step 4: Remove cloned repo ---
+# Move out of the repo directory before deleting it
+cd "$HOME"
+if [[ -d "$SCRIPT_DIR" && -d "$SCRIPT_DIR/.git" ]]; then
+  log "Removing cloned repo: $SCRIPT_DIR..."
+  rm -rf "$SCRIPT_DIR"
+  echo "  [DONE] repo removed"
+fi
 
 # --- Done ---
 echo ""
