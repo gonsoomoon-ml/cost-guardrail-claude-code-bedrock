@@ -43,7 +43,7 @@ check-cost.sh merges base + admin at runtime. release.sh merges base + dist to p
 
 ## Key Design Decisions
 
-- **Fail-open**: All errors → exit 0 (allow usage). Never block a developer due to infra issues. No `set -euo pipefail` in check-cost.sh.
+- **Fail-closed**: All errors → exit 2 (block usage). Prevents unmonitored spending. No `set -euo pipefail` in check-cost.sh (error handling is explicit per command).
 - **Plugin hooks vs settings.json hooks**: Plugin `hooks.json` non-zero exit codes do NOT block sessions/prompts. Actual blocking requires `~/.claude/settings.json` hooks. Both are needed: plugin for commands/skills, settings.json for enforcement.
 - **4-type token pricing**: Input, cache_read, cache_write, output each have separate per-model pricing. Cache read is ~10x cheaper than input.
 - **ARN model ID extraction**: Bedrock logs `modelId` as inference profile ARN (`arn:aws:bedrock:.../us.anthropic.claude-opus-4-6-v1`). Script extracts model ID and strips `us.` prefix for config.json pricing lookup.
@@ -55,7 +55,7 @@ check-cost.sh merges base + admin at runtime. release.sh merges base + dist to p
 
 ## Exit Code Semantics (check-cost.sh)
 
-- `exit 0` — allow usage (also used for all error/fail-open paths)
+- `exit 0` — allow usage (only when cost is verified below threshold, or counter skip)
 - `exit 2` — hard block (only when cost >= threshold, never in `report` mode)
 - Blocking only works from `~/.claude/settings.json` hooks, not from plugin `hooks.json`
 
@@ -94,7 +94,7 @@ claude plugin validate .
 - Token fields: `input.inputTokenCount`, `input.cacheReadInputTokenCount`, `input.cacheWriteInputTokenCount`, `output.outputTokenCount`
 - Results parsed by field name (not positional index) for robustness against schema changes
 - Model ID lookup chain: exact match in `pricing` → strip `us.` prefix and retry → fall back to `default_*_per_1k`
-- Query polls with progressive backoff (2,2,3,3,3,3,3,3,3 = 25s max); on timeout falls back to cache, then fail-open
+- Query polls with progressive backoff (2,2,3,3,3,3,3,3,3 = 25s max); on timeout falls back to cache, then fail-closed (block)
 - Daily accumulation: normal queries scan only today's logs; weekly reconciliation scans full month
 
 ## config.json Pricing Format

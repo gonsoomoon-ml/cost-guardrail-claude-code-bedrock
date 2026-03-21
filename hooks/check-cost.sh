@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # cost-guardrail: check-cost.sh
-# NOTE: No `set -euo pipefail` — this script uses a fail-open pattern.
-# Any unexpected error must result in exit 0 (allow usage), never a non-zero exit.
-# `set -e` would conflict with this by terminating the script on command failures
-# before our `|| { exit 0; }` guards can execute.
+# NOTE: No `set -euo pipefail` — this script uses a fail-closed pattern.
+# Any unexpected error results in exit 2 (block usage) to prevent
+# unmonitored spending. Only verified cost < threshold allows exit 0.
 
 # Resolve plugin root (directory containing .claude-plugin/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +14,7 @@ CACHE_FILE="/tmp/claude-cost-guardrail-${USER:-unknown}-cache.json"
 DAILY_FILE="/tmp/claude-cost-guardrail-${USER:-unknown}-daily.json"
 
 # 함수 라이브러리 로드
-source "${SCRIPT_DIR}/lib-cost.sh" 2>/dev/null || { echo "[cost-guardrail] lib-cost.sh not found" >&2; exit 0; }
+source "${SCRIPT_DIR}/lib-cost.sh" 2>/dev/null || { echo "[cost-guardrail] BLOCKED: lib-cost.sh not found" >&2; exit 2; }
 
 # --- 변수 초기화 ---
 TOTAL_COST=""
@@ -26,52 +25,53 @@ EVENT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --event) EVENT="${2:-}"; shift 2 ;;
-    *) echo "Unknown argument: $1" >&2; exit 0 ;;
+    *) echo "[cost-guardrail] BLOCKED: Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
 if [[ -z "$EVENT" ]]; then
-  echo "Usage: check-cost.sh --event <session_start|prompt_submit|report>" >&2
-  exit 0
+  echo "[cost-guardrail] BLOCKED: Missing --event argument" >&2
+  exit 2
 fi
 
-# --- 설정 로드 (base + admin 오버라이드 병합, fail-open) ---
+# --- 설정 로드 (base + admin 오버라이드 병합) ---
 # config.json: 공유 설정 (가격, log_group, 기본 단가)
 # admin/config.admin.json: 관리자 정책 (threshold, period, interval 등)
 # jq -s '.[0] * .[1]' 로 deep merge — admin 값이 base를 덮어씁니다.
 if [[ ! -f "$CONFIG_FILE" ]]; then
-  echo "[cost-guardrail] config.json not found, skipping check" >&2
-  exit 0
+  echo "[cost-guardrail] BLOCKED: config.json not found" >&2
+  exit 2
 fi
 
 ADMIN_CONFIG="${PLUGIN_ROOT}/admin/config.admin.json"
 if [[ -f "$ADMIN_CONFIG" ]]; then
-  MERGED_CONFIG=$(jq -s '.[0] * .[1]' "$CONFIG_FILE" "$ADMIN_CONFIG" 2>/dev/null) || MERGED_CONFIG=$(cat "$CONFIG_FILE")
+  MERGED_CONFIG=$(jq -s '.[0] * .[1]' "$CONFIG_FILE" "$ADMIN_CONFIG" 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config merge failed" >&2; exit 2; }
 else
-  MERGED_CONFIG=$(cat "$CONFIG_FILE")
+  MERGED_CONFIG=$(cat "$CONFIG_FILE") || { echo "[cost-guardrail] BLOCKED: config read failed" >&2; exit 2; }
 fi
 
-THRESHOLD_USD=$(echo "$MERGED_CONFIG" | jq -r '.threshold_usd // 50' 2>/dev/null) || { exit 0; }
-PERIOD=$(echo "$MERGED_CONFIG" | jq -r '.period // "monthly"' 2>/dev/null) || { exit 0; }
-CHECK_INTERVAL=$(echo "$MERGED_CONFIG" | jq -r '.check_interval // 10' 2>/dev/null) || { exit 0; }
-LOG_GROUP=$(echo "$MERGED_CONFIG" | jq -r '.log_group // "bedrock/model-invocations"' 2>/dev/null) || { exit 0; }
-TIMEZONE=$(echo "$MERGED_CONFIG" | jq -r '.timezone // "UTC"' 2>/dev/null) || { exit 0; }
-DEFAULT_INPUT=$(echo "$MERGED_CONFIG" | jq -r '.default_input_per_1k // 0.003' 2>/dev/null) || { exit 0; }
-DEFAULT_OUTPUT=$(echo "$MERGED_CONFIG" | jq -r '.default_output_per_1k // 0.015' 2>/dev/null) || { exit 0; }
-DEFAULT_CACHE_READ=$(echo "$MERGED_CONFIG" | jq -r '.default_cache_read_per_1k // 0.0003' 2>/dev/null) || { exit 0; }
-DEFAULT_CACHE_WRITE=$(echo "$MERGED_CONFIG" | jq -r '.default_cache_write_per_1k // 0.00375' 2>/dev/null) || { exit 0; }
+THRESHOLD_USD=$(echo "$MERGED_CONFIG" | jq -r '.threshold_usd // 50' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
+PERIOD=$(echo "$MERGED_CONFIG" | jq -r '.period // "monthly"' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
+CHECK_INTERVAL=$(echo "$MERGED_CONFIG" | jq -r '.check_interval // 10' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
+LOG_GROUP=$(echo "$MERGED_CONFIG" | jq -r '.log_group // "bedrock/model-invocations"' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
+TIMEZONE=$(echo "$MERGED_CONFIG" | jq -r '.timezone // "UTC"' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
+DEFAULT_INPUT=$(echo "$MERGED_CONFIG" | jq -r '.default_input_per_1k // 0.003' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
+DEFAULT_OUTPUT=$(echo "$MERGED_CONFIG" | jq -r '.default_output_per_1k // 0.015' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
+DEFAULT_CACHE_READ=$(echo "$MERGED_CONFIG" | jq -r '.default_cache_read_per_1k // 0.0003' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
+DEFAULT_CACHE_WRITE=$(echo "$MERGED_CONFIG" | jq -r '.default_cache_write_per_1k // 0.00375' 2>/dev/null) || { echo "[cost-guardrail] BLOCKED: config parse error" >&2; exit 2; }
 # MERGED_CONFIG_FILE: progressive 등 후속 jq 조회에 사용할 임시 파일
 MERGED_CONFIG_FILE="/tmp/claude-cost-guardrail-${USER:-unknown}-merged.json"
 echo "$MERGED_CONFIG" > "$MERGED_CONFIG_FILE" 2>/dev/null || true
 
-# Guard: if threshold is 0 or non-numeric, fail-open
+# Guard: if threshold is 0 or non-numeric, block
 if ! echo "$THRESHOLD_USD" | grep -qE '^[0-9]+\.?[0-9]*$' || [[ "$THRESHOLD_USD" == "0" ]]; then
-  echo "[cost-guardrail] Invalid or zero threshold_usd, skipping check" >&2
-  exit 0
+  echo "[cost-guardrail] BLOCKED: Invalid or zero threshold_usd" >&2
+  exit 2
 fi
 
 # --- 카운터 로직 (prompt_submit만 해당) ---
 # progressive 설정이 있으면 비용 근접도에 따라 체크 간격을 조절합니다.
+#   비용 >= 100% → 매 프롬프트마다 (즉시 차단)
 #   비용 < 50%  → low 간격 (느슨하게, 예: 50회마다)
 #   비용 50~80% → mid 간격 (중간, 예: 20회마다)
 #   비용 > 80%  → high 간격 (촘촘하게, 예: 5회마다)
@@ -106,7 +106,7 @@ if [[ "$EVENT" == "prompt_submit" ]]; then
   COUNTER=$((COUNTER + 1))
   if [[ "$COUNTER" -lt "$EFFECTIVE_INTERVAL" ]]; then
     echo "$COUNTER" > "$COUNTER_FILE"
-    exit 0  # 이번 체크 건너뜀
+    exit 0  # 이번 체크 건너뜀 (정상 흐름 — 아직 체크 간격에 도달하지 않음)
   fi
   # 카운터 리셋, 비용 확인 진행
   echo "0" > "$COUNTER_FILE"
@@ -116,10 +116,10 @@ if [[ "$EVENT" == "session_start" ]]; then
   echo "0" > "$COUNTER_FILE"
 fi
 
-# --- Get IAM User ARN (fail-open) ---
+# --- Get IAM User ARN ---
 USER_ARN=$(aws sts get-caller-identity --query "Arn" --output text 2>/dev/null) || {
-  echo "[cost-guardrail] Failed to get IAM identity, skipping check" >&2
-  exit 0
+  echo "[cost-guardrail] BLOCKED: Failed to get IAM identity" >&2
+  exit 2
 }
 
 # --- 캐시 확인 (session_start, report는 항상 새로 조회) ---
@@ -180,12 +180,12 @@ if [[ -z "$TOTAL_COST" ]]; then
   RESULTS=$(run_cw_query "$START_TIME" "$END_TIME")
 
   if [[ -z "$RESULTS" ]]; then
-    # 쿼리 실패 — 캐시 사용 또는 fail-open
+    # 쿼리 실패 — 캐시 사용, 캐시 없으면 block
     if use_cache; then
       TOTAL_COST="$CACHED_COST"
     else
-      echo "[cost-guardrail] CloudWatch query failed, skipping check" >&2
-      exit 0
+      echo "[cost-guardrail] BLOCKED: CloudWatch query failed and no cache available" >&2
+      exit 2
     fi
   else
     # 쿼리 결과 → 비용 계산

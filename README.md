@@ -420,18 +420,18 @@ git push
 - `config.json` (base + dist 병합 결과 — 현재 직원 임계값: $180)
 - `img/` (스크린샷: cost-status, cost-config, block_claude)
 
-## 에러 처리 (Fail-Open)
+## 에러 처리 (Fail-Closed)
 
-모든 에러 상황에서 **사용을 허용**합니다 (fail-open). 인프라 문제로 개발자가 차단되는 것을 방지합니다.
+모든 에러 상황에서 **사용을 차단**합니다 (fail-closed). 비용 확인이 불가능한 상태에서의 무제한 사용을 방지합니다.
 
 | 상황 | 동작 |
 |------|------|
-| AWS 자격 증명 실패 | exit 0 (허용) |
-| CloudWatch 쿼리 타임아웃 | 캐시 사용, 캐시 없으면 exit 0 |
-| config.json 누락/오류 | exit 0 (허용) |
-| lib-cost.sh 누락 | exit 0 (허용) |
+| AWS 자격 증명 실패 | exit 2 (차단) |
+| CloudWatch 쿼리 타임아웃 | 캐시 사용, 캐시 없으면 exit 2 (차단) |
+| config.json 누락/오류 | exit 2 (차단) |
+| lib-cost.sh 누락 | exit 2 (차단) |
 | 미등록 모델 | 기본 단가 적용 |
-| threshold_usd = 0 | exit 0 (허용) |
+| threshold_usd = 0 | exit 2 (차단) |
 
 ## Bedrock 로깅 설정 방법
 
