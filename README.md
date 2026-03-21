@@ -58,7 +58,6 @@ bash scripts/release.sh /path/to/bedrock-cost-guardrail
 ```
 /bedrock-cost-guardrail:cost-config show
 /bedrock-cost-guardrail:cost-config set check_interval 5
-/bedrock-cost-guardrail:cost-config set period daily
 ```
 
 > **참고:** `threshold_usd`(차단 임계값)는 관리자만 변경할 수 있습니다. `admin/config.admin.json`(관리자) 또는 `admin/config.dist.json`(직원 기본값)을 직접 편집하세요.
