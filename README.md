@@ -598,8 +598,14 @@ settings.json 훅 제거, 플러그인 디렉토리(`~/.claude/plugins/bedrock-c
 
 ## 14. 삭제
 
+**관리자** (소스 저장소에서):
 ```bash
 bash scripts/uninstall.sh
+```
+
+**직원** (섹션 13.6 참고):
+```bash
+bash ~/.claude/plugins/bedrock-cost-guardrail/uninstall.sh
 ```
 
 settings.json 훅 제거, 플러그인 디렉토리 삭제, `/tmp/` 임시 파일 정리를 자동으로 처리합니다.
