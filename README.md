@@ -542,10 +542,10 @@ sudo rm -f /tmp/claude-cost-guardrail-*
 
 # 쉘에서 차단 테스트 (모두 Exit: 2여야 정상)
 export AWS_REGION=us-west-2    # Bedrock 로깅 리전
-bash hooks/check-cost.sh --event report 2>&1
+bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event report 2>&1
 for i in 1 2 3; do
   echo "=== Prompt $i ==="
-  bash hooks/check-cost.sh --event prompt_submit 2>&1
+  bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event prompt_submit 2>&1
   echo "Exit: $?"
 done
 
