@@ -490,11 +490,27 @@ aws bedrock put-model-invocation-logging-configuration \
 - **로그 그룹 생성 시 `aws/` 접두사 오류**: `aws/`는 AWS 예약어. `bedrock/model-invocations` 사용.
 - **macOS에서 동작 안 함**: `bash scripts/preflight.sh` 실행하여 누락 도구 확인. jq, awk는 `brew install`로 설치.
 
-## 13. 차단 테스트 (시뮬레이션)
+## 13. 삭제
+
+**관리자** (소스 저장소에서):
+```bash
+# repo: cost-guardrail-claude-code-bedrock
+bash scripts/uninstall.sh
+```
+
+**직원** (섹션 14.6 참고):
+```bash
+# repo: bedrock-cost-guardrail (설치 위치: ~/.claude/plugins/bedrock-cost-guardrail)
+bash ~/.claude/plugins/bedrock-cost-guardrail/uninstall.sh
+```
+
+settings.json 훅 제거, 플러그인 디렉토리 삭제, `/tmp/` 임시 파일 정리를 자동으로 처리합니다.
+
+## 14. 차단 테스트 (시뮬레이션)
 
 차단 기능이 정상 동작하는지 확인하는 전체 시뮬레이션입니다.
 
-### 13.1. 현재 비용 확인
+### 14.1. 현재 비용 확인
 
 ```bash
 bash hooks/check-cost.sh --event report 2>&1
@@ -506,7 +522,7 @@ Estimated cost: $210.30 / $1000 (21.0%)
 Status: Active
 ```
 
-### 13.2. 임계값 낮추기
+### 14.2. 임계값 낮추기
 
 현재 비용보다 낮은 값으로 직원 임계값을 설정합니다 (예: 비용이 $210이면 $100으로):
 
@@ -528,7 +544,7 @@ cd /path/to/bedrock-cost-guardrail
 git add -A && git commit -m "Test: lower threshold to 100" && git push
 ```
 
-### 13.3. 직원 측 — 업데이트 및 차단 확인
+### 14.3. 직원 측 — 업데이트 및 차단 확인
 
 직원 Mac/PC에서:
 
@@ -553,7 +569,7 @@ claude
 # 아무 프롬프트 입력 → "BLOCKED" + "Contact your admin" 메시지 확인
 ```
 
-### 13.4. 임계값 복원
+### 14.4. 임계값 복원
 
 ```bash
 # 소스 저장소로 이동
@@ -573,7 +589,7 @@ cd /path/to/bedrock-cost-guardrail
 git add -A && git commit -m "Restore threshold to 180" && git push
 ```
 
-### 13.5. 직원 측 — 차단 해제 확인
+### 14.5. 직원 측 — 차단 해제 확인
 
 ```bash
 # 플러그인 업데이트 (install.sh 재실행으로 Claude Code 내부 캐시 갱신)
@@ -586,7 +602,7 @@ claude
 # 아무 프롬프트 입력 → 정상 응답 확인
 ```
 
-### 13.6. (선택) 직원 측 — 플러그인 삭제
+### 14.6. (선택) 직원 측 — 플러그인 삭제
 
 시뮬레이션 후 직원 PC에서 플러그인을 완전히 제거하려면:
 
@@ -595,22 +611,6 @@ bash ~/.claude/plugins/bedrock-cost-guardrail/uninstall.sh
 ```
 
 settings.json 훅 제거, 플러그인 디렉토리(`~/.claude/plugins/bedrock-cost-guardrail`) 삭제, `/tmp/` 임시 파일 정리를 자동으로 처리합니다.
-
-## 14. 삭제
-
-**관리자** (소스 저장소에서):
-```bash
-# repo: cost-guardrail-claude-code-bedrock
-bash scripts/uninstall.sh
-```
-
-**직원** (섹션 13.6 참고):
-```bash
-# repo: bedrock-cost-guardrail (설치 위치: ~/.claude/plugins/bedrock-cost-guardrail)
-bash ~/.claude/plugins/bedrock-cost-guardrail/uninstall.sh
-```
-
-settings.json 훅 제거, 플러그인 디렉토리 삭제, `/tmp/` 임시 파일 정리를 자동으로 처리합니다.
 
 ## 15. 확장 아키텍처 (사용자 규모별)
 
