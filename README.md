@@ -50,7 +50,7 @@ bash scripts/release.sh /path/to/bedrock-cost-guardrail
 
 비용이 임계값에 도달하면 자동으로 차단됩니다.
 
-![임계값 초과 시 차단 화면](img/block_claude.png)
+![임계값 초과 시 차단 화면](img/block_sesseion_start.png)
 
 ## 사용법
 
