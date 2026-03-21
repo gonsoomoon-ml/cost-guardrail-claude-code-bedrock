@@ -139,3 +139,61 @@ To publish a new version to the marketplace repo:
     cd /path/to/bedrock-cost-guardrail && git add -A && git commit -m "Release vX.Y.Z" && git push
 
 The release script merges `config.json` + `admin/config.dist.json` to produce the distribution config ($180 employee threshold).
+
+## Simulation (Blocking Test)
+
+End-to-end test to verify the full lifecycle: allow → use → threshold reached → block.
+
+### 1. Set a low threshold (below current cost)
+
+```bash
+# Check current cost first
+bash hooks/check-cost.sh --event report 2>&1
+
+# Set threshold below current cost (e.g., $100 if cost is ~$200)
+vi admin/config.dist.json   # set threshold_usd to 100
+
+# Release to dist repo
+bash scripts/release.sh /path/to/bedrock-cost-guardrail
+cd /path/to/bedrock-cost-guardrail && git add -A && git commit -m "Test: lower threshold" && git push
+```
+
+### 2. Employee side — install and test
+
+```bash
+# Pull latest and clean state
+cd ~/.claude/plugins/bedrock-cost-guardrail
+git pull
+sudo rm -f /tmp/claude-cost-guardrail-*
+
+# Verify blocking in shell (should all Exit: 2)
+export AWS_REGION=<your-region>
+bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event report 2>&1
+for i in 1 2 3; do
+  echo "=== Prompt $i ==="
+  bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event prompt_submit 2>&1
+  echo "Exit: $?"
+done
+
+# Test in Claude Code (should block immediately)
+claude
+# Type any prompt → should see "BLOCKED" + "Contact your admin"
+```
+
+### 3. Restore threshold
+
+```bash
+# Set threshold back to $180
+vi admin/config.dist.json   # set threshold_usd to 180
+bash scripts/release.sh /path/to/bedrock-cost-guardrail
+cd /path/to/bedrock-cost-guardrail && git add -A && git commit -m "Restore threshold" && git push
+```
+
+### 4. Employee side — verify unblocked
+
+```bash
+cd ~/.claude/plugins/bedrock-cost-guardrail && git pull
+sudo rm -f /tmp/claude-cost-guardrail-*
+claude
+# Type any prompt → should work normally
+```
