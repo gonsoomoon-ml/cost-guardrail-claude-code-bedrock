@@ -586,6 +586,16 @@ claude
 # 아무 프롬프트 입력 → 정상 응답 확인
 ```
 
+### 13.6. (선택) 직원 측 — 플러그인 삭제
+
+시뮬레이션 후 직원 PC에서 플러그인을 완전히 제거하려면:
+
+```bash
+bash ~/.claude/plugins/bedrock-cost-guardrail/uninstall.sh
+```
+
+settings.json 훅 제거, 플러그인 디렉토리(`~/.claude/plugins/bedrock-cost-guardrail`) 삭제, `/tmp/` 임시 파일 정리를 자동으로 처리합니다.
+
 ## 14. 삭제
 
 ```bash
