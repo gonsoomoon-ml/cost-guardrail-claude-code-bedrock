@@ -287,6 +287,8 @@ Platform: linux (aarch64)
 
 직원은 [마켓플레이스 저장소](https://github.com/gonsoomoon-ml/bedrock-cost-guardrail)에서 `install.sh` 하나로 설치합니다:
 
+> **터미널 열기:** macOS → Terminal 앱, Windows → Git Bash 앱, Linux → Terminal
+
 ```bash
 git clone https://github.com/gonsoomoon-ml/bedrock-cost-guardrail.git
 cd bedrock-cost-guardrail
