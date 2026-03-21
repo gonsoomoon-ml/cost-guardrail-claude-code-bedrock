@@ -522,6 +522,7 @@ bash scripts/release.sh /path/to/bedrock-cost-guardrail
 
 # 커밋 & 푸시
 cd /path/to/bedrock-cost-guardrail
+# 예시 (실제 경로): cd /home/ubuntu/bedrock-cost-guardrail
 git add -A && git commit -m "Test: lower threshold to 100" && git push
 ```
 
@@ -563,6 +564,7 @@ bash scripts/release.sh /path/to/bedrock-cost-guardrail
 
 # 커밋 & 푸시
 cd /path/to/bedrock-cost-guardrail
+# 예시 (실제 경로): cd /home/ubuntu/bedrock-cost-guardrail
 git add -A && git commit -m "Restore threshold to 180" && git push
 ```
 
