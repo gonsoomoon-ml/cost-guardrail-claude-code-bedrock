@@ -20,7 +20,8 @@ View or modify the cost guardrail plugin settings.
 1. Read `${CLAUDE_PLUGIN_ROOT}/config.json` (shared base: pricing, log_group)
 2. If `${CLAUDE_PLUGIN_ROOT}/admin/config.admin.json` exists, merge it (admin overrides)
 3. Display all settings in a formatted table:
-   - threshold_usd, period, check_interval, timezone, progressive
+   - threshold_usd, period, timezone, check_interval, progressive
+   - If `progressive` is configured, show `check_interval` as `progressive (low/mid/high)` instead of the raw number (e.g., `progressive (50/20/5)`)
    - List all models in the pricing table with their rates
 4. Indicate which values come from admin overrides vs base config
 
