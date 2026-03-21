@@ -38,6 +38,7 @@ mkdir -p "$PLUGIN_DIR/.claude-plugin"
 mkdir -p "$PLUGIN_DIR/commands"
 mkdir -p "$PLUGIN_DIR/hooks"
 mkdir -p "$PLUGIN_DIR/skills/cost-awareness"
+mkdir -p "$PLUGIN_DIR/img"
 
 # Copy plugin files
 echo "[release] Copying plugin files..."
@@ -46,43 +47,24 @@ cp "$SOURCE_ROOT/commands/cost-status.md"    "$PLUGIN_DIR/commands/cost-status.m
 cp "$SOURCE_ROOT/commands/cost-config.md"    "$PLUGIN_DIR/commands/cost-config.md"
 cp "$SOURCE_ROOT/hooks/hooks.json"           "$PLUGIN_DIR/hooks/hooks.json"
 cp "$SOURCE_ROOT/hooks/check-cost.sh"        "$PLUGIN_DIR/hooks/check-cost.sh"
+cp "$SOURCE_ROOT/hooks/lib-cost.sh"          "$PLUGIN_DIR/hooks/lib-cost.sh"
 cp "$SOURCE_ROOT/skills/cost-awareness/SKILL.md" "$PLUGIN_DIR/skills/cost-awareness/SKILL.md"
 
-# Generate distribution config.json with safe defaults
+# Copy screenshot images (referenced by README)
+if [[ -d "$SOURCE_ROOT/img" ]]; then
+  echo "[release] Copying images..."
+  cp "$SOURCE_ROOT"/img/*.png "$PLUGIN_DIR/img/" 2>/dev/null || true
+fi
+
+# Generate distribution config.json by merging base + dist overrides
+# config.json (pricing, log_group) + admin/config.dist.json (threshold, period, etc.)
 echo "[release] Generating distribution config.json..."
-cat > "$PLUGIN_DIR/config.json" << 'DIST_CONFIG'
-{
-  "threshold_usd": 50,
-  "period": "monthly",
-  "check_interval": 10,
-  "log_group": "bedrock/model-invocations",
-  "timezone": "UTC",
-  "default_input_per_1k": 0.003,
-  "default_output_per_1k": 0.015,
-  "default_cache_read_per_1k": 0.0003,
-  "default_cache_write_per_1k": 0.00375,
-  "pricing": {
-    "anthropic.claude-opus-4-6-v1": {
-      "input_per_1k": 0.015,
-      "output_per_1k": 0.075,
-      "cache_read_per_1k": 0.0015,
-      "cache_write_per_1k": 0.01875
-    },
-    "anthropic.claude-sonnet-4-6-v1": {
-      "input_per_1k": 0.003,
-      "output_per_1k": 0.015,
-      "cache_read_per_1k": 0.0003,
-      "cache_write_per_1k": 0.00375
-    },
-    "anthropic.claude-haiku-4-5-20251001-v1:0": {
-      "input_per_1k": 0.0008,
-      "output_per_1k": 0.004,
-      "cache_read_per_1k": 0.00008,
-      "cache_write_per_1k": 0.001
-    }
-  }
-}
-DIST_CONFIG
+DIST_OVERRIDE="${SOURCE_ROOT}/admin/config.dist.json"
+if [[ ! -f "$DIST_OVERRIDE" ]]; then
+  echo "Error: admin/config.dist.json not found" >&2
+  exit 1
+fi
+jq -s '.[0] * .[1]' "$SOURCE_ROOT/config.json" "$DIST_OVERRIDE" > "$PLUGIN_DIR/config.json"
 
 # Summary
 echo ""
