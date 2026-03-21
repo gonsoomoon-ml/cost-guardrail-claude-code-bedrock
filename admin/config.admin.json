@@ -1,0 +1,7 @@
+{
+  "threshold_usd": 1000,
+  "period": "monthly",
+  "check_interval": 10,
+  "timezone": "Asia/Seoul",
+  "progressive": {"low": 50, "mid": 20, "high": 5}
+}

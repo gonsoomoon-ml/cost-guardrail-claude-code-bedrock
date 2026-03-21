@@ -1,9 +1,5 @@
 {
-  "threshold_usd": 50,
-  "period": "monthly",
-  "check_interval": 10,
   "log_group": "bedrock/model-invocations",
-  "timezone": "UTC",
   "default_input_per_1k": 0.003,
   "default_output_per_1k": 0.015,
   "default_cache_read_per_1k": 0.0003,

@@ -12,9 +12,12 @@ PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CONFIG_FILE="${PLUGIN_ROOT}/config.json"
 COUNTER_FILE="/tmp/claude-cost-guardrail-${USER:-unknown}-counter"
 CACHE_FILE="/tmp/claude-cost-guardrail-${USER:-unknown}-cache.json"
+DAILY_FILE="/tmp/claude-cost-guardrail-${USER:-unknown}-daily.json"
 
-# --- Initialize variables (prevent unset variable issues) ---
-QUERY_ID=""
+# 함수 라이브러리 로드
+source "${SCRIPT_DIR}/lib-cost.sh" 2>/dev/null || { echo "[cost-guardrail] lib-cost.sh not found" >&2; exit 0; }
+
+# --- 변수 초기화 ---
 TOTAL_COST=""
 CACHED_COST=""
 
@@ -32,21 +35,34 @@ if [[ -z "$EVENT" ]]; then
   exit 0
 fi
 
-# --- Load Config (fail-open on error) ---
+# --- 설정 로드 (base + admin 오버라이드 병합, fail-open) ---
+# config.json: 공유 설정 (가격, log_group, 기본 단가)
+# admin/config.admin.json: 관리자 정책 (threshold, period, interval 등)
+# jq -s '.[0] * .[1]' 로 deep merge — admin 값이 base를 덮어씁니다.
 if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "[cost-guardrail] config.json not found, skipping check" >&2
   exit 0
 fi
 
-THRESHOLD_USD=$(jq -r '.threshold_usd // 50' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-PERIOD=$(jq -r '.period // "monthly"' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-CHECK_INTERVAL=$(jq -r '.check_interval // 10' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-LOG_GROUP=$(jq -r '.log_group // "bedrock/model-invocations"' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-TIMEZONE=$(jq -r '.timezone // "UTC"' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-DEFAULT_INPUT=$(jq -r '.default_input_per_1k // 0.003' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-DEFAULT_OUTPUT=$(jq -r '.default_output_per_1k // 0.015' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-DEFAULT_CACHE_READ=$(jq -r '.default_cache_read_per_1k // 0.0003' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
-DEFAULT_CACHE_WRITE=$(jq -r '.default_cache_write_per_1k // 0.00375' "$CONFIG_FILE" 2>/dev/null) || { exit 0; }
+ADMIN_CONFIG="${PLUGIN_ROOT}/admin/config.admin.json"
+if [[ -f "$ADMIN_CONFIG" ]]; then
+  MERGED_CONFIG=$(jq -s '.[0] * .[1]' "$CONFIG_FILE" "$ADMIN_CONFIG" 2>/dev/null) || MERGED_CONFIG=$(cat "$CONFIG_FILE")
+else
+  MERGED_CONFIG=$(cat "$CONFIG_FILE")
+fi
+
+THRESHOLD_USD=$(echo "$MERGED_CONFIG" | jq -r '.threshold_usd // 50' 2>/dev/null) || { exit 0; }
+PERIOD=$(echo "$MERGED_CONFIG" | jq -r '.period // "monthly"' 2>/dev/null) || { exit 0; }
+CHECK_INTERVAL=$(echo "$MERGED_CONFIG" | jq -r '.check_interval // 10' 2>/dev/null) || { exit 0; }
+LOG_GROUP=$(echo "$MERGED_CONFIG" | jq -r '.log_group // "bedrock/model-invocations"' 2>/dev/null) || { exit 0; }
+TIMEZONE=$(echo "$MERGED_CONFIG" | jq -r '.timezone // "UTC"' 2>/dev/null) || { exit 0; }
+DEFAULT_INPUT=$(echo "$MERGED_CONFIG" | jq -r '.default_input_per_1k // 0.003' 2>/dev/null) || { exit 0; }
+DEFAULT_OUTPUT=$(echo "$MERGED_CONFIG" | jq -r '.default_output_per_1k // 0.015' 2>/dev/null) || { exit 0; }
+DEFAULT_CACHE_READ=$(echo "$MERGED_CONFIG" | jq -r '.default_cache_read_per_1k // 0.0003' 2>/dev/null) || { exit 0; }
+DEFAULT_CACHE_WRITE=$(echo "$MERGED_CONFIG" | jq -r '.default_cache_write_per_1k // 0.00375' 2>/dev/null) || { exit 0; }
+# MERGED_CONFIG_FILE: progressive 등 후속 jq 조회에 사용할 임시 파일
+MERGED_CONFIG_FILE="/tmp/claude-cost-guardrail-${USER:-unknown}-merged.json"
+echo "$MERGED_CONFIG" > "$MERGED_CONFIG_FILE" 2>/dev/null || true
 
 # Guard: if threshold is 0 or non-numeric, fail-open
 if ! echo "$THRESHOLD_USD" | grep -qE '^[0-9]+\.?[0-9]*$' || [[ "$THRESHOLD_USD" == "0" ]]; then
@@ -54,22 +70,43 @@ if ! echo "$THRESHOLD_USD" | grep -qE '^[0-9]+\.?[0-9]*$' || [[ "$THRESHOLD_USD"
   exit 0
 fi
 
-# --- Counter Logic (prompt_submit only) ---
+# --- 카운터 로직 (prompt_submit만 해당) ---
+# progressive 설정이 있으면 비용 근접도에 따라 체크 간격을 조절합니다.
+#   비용 < 50%  → low 간격 (느슨하게, 예: 50회마다)
+#   비용 50~80% → mid 간격 (중간, 예: 20회마다)
+#   비용 > 80%  → high 간격 (촘촘하게, 예: 5회마다)
+# progressive 미설정 시 check_interval 사용 (하위 호환)
 if [[ "$EVENT" == "prompt_submit" ]]; then
+  # 캐시에서 마지막 비용을 읽어 적정 간격 결정 (추가 쿼리 없음)
+  EFFECTIVE_INTERVAL="$CHECK_INTERVAL"
+  PROG_LOW=$(jq -r '.progressive.low // null' "$MERGED_CONFIG_FILE" 2>/dev/null)
+  if [[ "$PROG_LOW" != "null" && -n "$PROG_LOW" && -f "$CACHE_FILE" ]]; then
+    LAST_COST=$(jq -r '.cost_usd // 0' "$CACHE_FILE" 2>/dev/null) || LAST_COST="0"
+    COST_PCT=$(awk "BEGIN {printf \"%.0f\", ${LAST_COST} * 100 / ${THRESHOLD_USD}}" 2>/dev/null) || COST_PCT="0"
+    PROG_MID=$(jq -r '.progressive.mid // 20' "$MERGED_CONFIG_FILE" 2>/dev/null) || PROG_MID="20"
+    PROG_HIGH=$(jq -r '.progressive.high // 5' "$MERGED_CONFIG_FILE" 2>/dev/null) || PROG_HIGH="5"
+    if [[ "$COST_PCT" -lt 50 ]]; then
+      EFFECTIVE_INTERVAL="$PROG_LOW"
+    elif [[ "$COST_PCT" -lt 80 ]]; then
+      EFFECTIVE_INTERVAL="$PROG_MID"
+    else
+      EFFECTIVE_INTERVAL="$PROG_HIGH"
+    fi
+  fi
+
   COUNTER=0
   if [[ -f "$COUNTER_FILE" ]]; then
     COUNTER=$(cat "$COUNTER_FILE" 2>/dev/null) || COUNTER=0
-    # Validate it's a number
     if ! [[ "$COUNTER" =~ ^[0-9]+$ ]]; then
       COUNTER=0
     fi
   fi
   COUNTER=$((COUNTER + 1))
-  if [[ "$COUNTER" -lt "$CHECK_INTERVAL" ]]; then
+  if [[ "$COUNTER" -lt "$EFFECTIVE_INTERVAL" ]]; then
     echo "$COUNTER" > "$COUNTER_FILE"
-    exit 0  # Skip this check
+    exit 0  # 이번 체크 건너뜀
   fi
-  # Reset counter and proceed with check
+  # 카운터 리셋, 비용 확인 진행
   echo "0" > "$COUNTER_FILE"
 fi
 
@@ -83,133 +120,88 @@ USER_ARN=$(aws sts get-caller-identity --query "Arn" --output text 2>/dev/null) 
   exit 0
 }
 
-# --- Check Cache ---
-use_cache() {
-  if [[ -f "$CACHE_FILE" ]]; then
-    local cache_ts
-    cache_ts=$(jq -r '.timestamp // 0' "$CACHE_FILE" 2>/dev/null) || { return 1; }
-    local now_ts
-    now_ts=$(date +%s)
-    local age=$(( now_ts - cache_ts ))
-    if [[ "$age" -lt 300 ]]; then  # 5 minutes
-      CACHED_COST=$(jq -r '.cost_usd // 0' "$CACHE_FILE" 2>/dev/null) || { return 1; }
-      return 0
-    fi
-  fi
-  return 1
-}
-
-# Both session_start and report always perform a fresh query (bypass cache)
+# --- 캐시 확인 (session_start, report는 항상 새로 조회) ---
 if [[ "$EVENT" == "prompt_submit" ]] && use_cache; then
   TOTAL_COST="$CACHED_COST"
 fi
 
-# --- CloudWatch Logs Insights Query ---
+# --- CloudWatch Logs Insights 쿼리 ---
 if [[ -z "$TOTAL_COST" ]]; then
-  # Calculate time range
-  if [[ "$PERIOD" == "daily" ]]; then
-    START_TIME=$(TZ="$TIMEZONE" date -d "today 00:00:00" +%s 2>/dev/null) || START_TIME=$(date +%s)
-  else
-    START_TIME=$(TZ="$TIMEZONE" date -d "$(date +%Y-%m-01) 00:00:00" +%s 2>/dev/null) || START_TIME=$(date +%s)
-  fi
-  END_TIME=$(date +%s)
+  # 시간 범위 계산 (이식성: date -d 대신 산술 사용)
+  NOW_EPOCH=$(date +%s)
+  HOUR=$(TZ="$TIMEZONE" date +%H); MIN=$(TZ="$TIMEZONE" date +%M); SEC=$(TZ="$TIMEZONE" date +%S)
+  TODAY_START=$(( NOW_EPOCH - (10#$HOUR * 3600) - (10#$MIN * 60) - 10#$SEC ))
+  CURRENT_MONTH=$(TZ="$TIMEZONE" date +%Y-%m)
+  CURRENT_DATE=$(TZ="$TIMEZONE" date +%Y-%m-%d)
 
-  # Start query (separate token types for accurate pricing)
+  # CW 쿼리문 (모델별 4종 토큰 집계)
   QUERY_STRING="filter identity.arn = \"${USER_ARN}\"
 | stats sum(input.inputTokenCount) as inputTokens, sum(input.cacheReadInputTokenCount) as cacheReadTokens, sum(input.cacheWriteInputTokenCount) as cacheWriteTokens, sum(output.outputTokenCount) as outputTokens by modelId"
 
-  QUERY_ID=$(aws logs start-query \
-    --log-group-name "$LOG_GROUP" \
-    --start-time "$START_TIME" \
-    --end-time "$END_TIME" \
-    --query-string "$QUERY_STRING" \
-    --query "queryId" --output text 2>/dev/null) || {
-    # Query failed — use cache or fail-open
+  # --- 일별 누적 로직 (monthly만 해당) ---
+  # daily 모드는 하루치만 조회하므로 누적 불필요
+  USE_FULL_QUERY=""
+  PREV_TOTAL="0"
+
+  if [[ "$PERIOD" == "monthly" ]]; then
+    init_daily_state
+
+    # session_start 시 어제 비용 확정 (로그 수집 지연 고려)
+    if [[ "$EVENT" == "session_start" ]]; then
+      finalize_yesterday
+    fi
+
+    PREV_TOTAL=$(load_previous_total)
+
+    # 7일마다 전체 월 쿼리로 drift 보정
+    if [[ "$(needs_reconciliation)" == "true" ]]; then
+      USE_FULL_QUERY="true"
+      update_reconcile_timestamp
+    fi
+  fi
+
+  # --- 쿼리 시간 범위 결정 ---
+  if [[ "$PERIOD" == "daily" ]]; then
+    # daily: 오늘 00:00 → 현재
+    START_TIME=$TODAY_START
+  elif [[ "$USE_FULL_QUERY" == "true" ]]; then
+    # 보정 쿼리: 월초 → 현재 (전체 스캔)
+    DAY=$(TZ="$TIMEZONE" date +%d)
+    START_TIME=$(( TODAY_START - (10#$DAY - 1) * 86400 ))
+  else
+    # 일별 누적: 오늘 00:00 → 현재 (하루치만 스캔 — 31배 절감)
+    START_TIME=$TODAY_START
+  fi
+  END_TIME=$NOW_EPOCH
+
+  # --- CW 쿼리 실행 + 결과 처리 ---
+  RESULTS=$(run_cw_query "$START_TIME" "$END_TIME")
+
+  if [[ -z "$RESULTS" ]]; then
+    # 쿼리 실패 — 캐시 사용 또는 fail-open
     if use_cache; then
       TOTAL_COST="$CACHED_COST"
     else
       echo "[cost-guardrail] CloudWatch query failed, skipping check" >&2
       exit 0
     fi
-  }
+  else
+    # 쿼리 결과 → 비용 계산
+    QUERY_COST=$(calculate_cost_from_results "$RESULTS")
 
-  # Poll for results (max 5 attempts, 3s intervals)
-  if [[ -n "$QUERY_ID" && -z "$TOTAL_COST" ]]; then
-    RESULTS=""
-    for i in 1 2 3 4 5; do
-      sleep 3
-      STATUS=$(aws logs get-query-results --query-id "$QUERY_ID" --query "status" --output text 2>/dev/null) || break
-      if [[ "$STATUS" == "Complete" ]]; then
-        RESULTS=$(aws logs get-query-results --query-id "$QUERY_ID" --output json 2>/dev/null) || break
-        break
-      elif [[ "$STATUS" == "Failed" || "$STATUS" == "Cancelled" ]]; then
-        break
-      fi
-    done
-
-    if [[ -z "$RESULTS" ]]; then
-      # Timed out or failed — use cache or fail-open
-      if use_cache; then
-        TOTAL_COST="$CACHED_COST"
-      else
-        echo "[cost-guardrail] CloudWatch query timed out, skipping check" >&2
-        exit 0
-      fi
+    if [[ "$PERIOD" == "daily" ]]; then
+      # daily: 쿼리 결과가 곧 총 비용
+      TOTAL_COST="$QUERY_COST"
+    elif [[ "$USE_FULL_QUERY" == "true" ]]; then
+      # 보정: 전체 월 쿼리 결과가 곧 총 비용
+      TOTAL_COST="$QUERY_COST"
     else
-      # Calculate cost from results
-      TOTAL_COST="0"
-      while IFS= read -r row; do
-        # Parse by field name (not positional index) for robustness
-        MODEL_ID_RAW=$(echo "$row" | jq -r '.[] | select(.field == "modelId") | .value // ""' 2>/dev/null) || continue
-        INPUT_TOKENS=$(echo "$row" | jq -r '[.[] | select(.field == "inputTokens") | .value] | first // "0"' 2>/dev/null) || INPUT_TOKENS="0"
-        CACHE_READ_TOKENS=$(echo "$row" | jq -r '[.[] | select(.field == "cacheReadTokens") | .value] | first // "0"' 2>/dev/null) || CACHE_READ_TOKENS="0"
-        CACHE_WRITE_TOKENS=$(echo "$row" | jq -r '[.[] | select(.field == "cacheWriteTokens") | .value] | first // "0"' 2>/dev/null) || CACHE_WRITE_TOKENS="0"
-        OUTPUT_TOKENS=$(echo "$row" | jq -r '[.[] | select(.field == "outputTokens") | .value] | first // "0"' 2>/dev/null) || OUTPUT_TOKENS="0"
-
-        # Ensure numeric (empty string → 0)
-        INPUT_TOKENS="${INPUT_TOKENS:-0}"; [[ "$INPUT_TOKENS" =~ ^[0-9]+$ ]] || INPUT_TOKENS="0"
-        CACHE_READ_TOKENS="${CACHE_READ_TOKENS:-0}"; [[ "$CACHE_READ_TOKENS" =~ ^[0-9]+$ ]] || CACHE_READ_TOKENS="0"
-        CACHE_WRITE_TOKENS="${CACHE_WRITE_TOKENS:-0}"; [[ "$CACHE_WRITE_TOKENS" =~ ^[0-9]+$ ]] || CACHE_WRITE_TOKENS="0"
-        OUTPUT_TOKENS="${OUTPUT_TOKENS:-0}"; [[ "$OUTPUT_TOKENS" =~ ^[0-9]+$ ]] || OUTPUT_TOKENS="0"
-
-        # Skip rows with no token data
-        if [[ "$INPUT_TOKENS" == "0" && "$CACHE_READ_TOKENS" == "0" && "$CACHE_WRITE_TOKENS" == "0" && "$OUTPUT_TOKENS" == "0" ]]; then
-          continue
-        fi
-
-        # Extract model ID from ARN if needed
-        # e.g. "arn:aws:bedrock:us-west-2:123:inference-profile/us.anthropic.claude-opus-4-6-v1" → "us.anthropic.claude-opus-4-6-v1"
-        MODEL_ID="$MODEL_ID_RAW"
-        if [[ "$MODEL_ID" == arn:* ]]; then
-          MODEL_ID="${MODEL_ID##*/}"
-        fi
-
-        # Look up model pricing: try exact match, then try without "us." prefix
-        LOOKUP_ID="$MODEL_ID"
-        INPUT_PRICE=$(jq -r ".pricing[\"${LOOKUP_ID}\"].input_per_1k // null" "$CONFIG_FILE" 2>/dev/null)
-        if [[ "$INPUT_PRICE" == "null" || -z "$INPUT_PRICE" ]]; then
-          LOOKUP_ID="${MODEL_ID#us.}"
-          INPUT_PRICE=$(jq -r ".pricing[\"${LOOKUP_ID}\"].input_per_1k // null" "$CONFIG_FILE" 2>/dev/null)
-        fi
-        # If still not found, use defaults
-        if [[ "$INPUT_PRICE" == "null" || -z "$INPUT_PRICE" ]]; then
-          INPUT_PRICE="$DEFAULT_INPUT"
-          OUTPUT_PRICE="$DEFAULT_OUTPUT"
-          CACHE_READ_PRICE="$DEFAULT_CACHE_READ"
-          CACHE_WRITE_PRICE="$DEFAULT_CACHE_WRITE"
-        else
-          OUTPUT_PRICE=$(jq -r ".pricing[\"${LOOKUP_ID}\"].output_per_1k // ${DEFAULT_OUTPUT}" "$CONFIG_FILE" 2>/dev/null) || OUTPUT_PRICE="$DEFAULT_OUTPUT"
-          CACHE_READ_PRICE=$(jq -r ".pricing[\"${LOOKUP_ID}\"].cache_read_per_1k // ${DEFAULT_CACHE_READ}" "$CONFIG_FILE" 2>/dev/null) || CACHE_READ_PRICE="$DEFAULT_CACHE_READ"
-          CACHE_WRITE_PRICE=$(jq -r ".pricing[\"${LOOKUP_ID}\"].cache_write_per_1k // ${DEFAULT_CACHE_WRITE}" "$CONFIG_FILE" 2>/dev/null) || CACHE_WRITE_PRICE="$DEFAULT_CACHE_WRITE"
-        fi
-
-        MODEL_COST=$(echo "scale=4; (${INPUT_TOKENS} / 1000 * ${INPUT_PRICE}) + (${CACHE_READ_TOKENS} / 1000 * ${CACHE_READ_PRICE}) + (${CACHE_WRITE_TOKENS} / 1000 * ${CACHE_WRITE_PRICE}) + (${OUTPUT_TOKENS} / 1000 * ${OUTPUT_PRICE})" | bc 2>/dev/null) || MODEL_COST="0"
-        TOTAL_COST=$(echo "scale=4; ${TOTAL_COST} + ${MODEL_COST}" | bc 2>/dev/null) || TOTAL_COST="0"
-      done < <(echo "$RESULTS" | jq -c '.results[]' 2>/dev/null)
-
-      # Write cache
-      echo "{\"cost_usd\": ${TOTAL_COST}, \"timestamp\": $(date +%s)}" > "$CACHE_FILE" 2>/dev/null || true
+      # 일별 누적: 이전 일자 합계 + 오늘 비용
+      TOTAL_COST=$(awk "BEGIN {printf \"%.5f\", ${PREV_TOTAL} + ${QUERY_COST}}" 2>/dev/null) || TOTAL_COST="$QUERY_COST"
     fi
+
+    # 캐시 저장
+    echo "{\"cost_usd\": ${TOTAL_COST}, \"timestamp\": $(date +%s)}" > "$CACHE_FILE" 2>/dev/null || true
   fi
 fi
 
@@ -218,14 +210,18 @@ fi
 TOTAL_COST="${TOTAL_COST:-0}"
 
 # Calculate percentage
-PERCENT=$(echo "scale=1; ${TOTAL_COST} * 100 / ${THRESHOLD_USD}" | bc 2>/dev/null) || PERCENT="0"
+PERCENT=$(awk "BEGIN {printf \"%.1f\", ${TOTAL_COST} * 100 / ${THRESHOLD_USD}}" 2>/dev/null) || PERCENT="0"
 
 # Report mode — always print, never block
 if [[ "$EVENT" == "report" ]]; then
   echo "User: ${USER_ARN}"
-  echo "Period: $(date +%Y-%m) (${PERIOD})"
+  if [[ "$PERIOD" == "daily" ]]; then
+    echo "Period: $(TZ="$TIMEZONE" date +%Y-%m-%d) (${PERIOD})"
+  else
+    echo "Period: $(TZ="$TIMEZONE" date +%Y-%m) (${PERIOD})"
+  fi
   echo "Estimated cost: \$${TOTAL_COST} / \$${THRESHOLD_USD} (${PERCENT}%)"
-  if (( $(echo "${TOTAL_COST} >= ${THRESHOLD_USD}" | bc -l 2>/dev/null || echo 0) )); then
+  if [ "$(awk "BEGIN {print (${TOTAL_COST} >= ${THRESHOLD_USD}) ? 1 : 0}")" = "1" ]; then
     echo "Status: BLOCKED"
   else
     echo "Status: Active"
@@ -234,7 +230,7 @@ if [[ "$EVENT" == "report" ]]; then
 fi
 
 # Check threshold
-EXCEEDED=$(echo "${TOTAL_COST} >= ${THRESHOLD_USD}" | bc -l 2>/dev/null) || EXCEEDED="0"
+EXCEEDED=$(awk "BEGIN {print (${TOTAL_COST} >= ${THRESHOLD_USD}) ? 1 : 0}" 2>/dev/null) || EXCEEDED="0"
 if [[ "$EXCEEDED" == "1" ]]; then
   echo "[cost-guardrail] BLOCKED: Estimated Bedrock cost \$${TOTAL_COST} has reached threshold \$${THRESHOLD_USD} (${PERCENT}%)" >&2
   echo "[cost-guardrail] Run /cost-status for details or /cost-config to adjust threshold" >&2

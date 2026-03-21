@@ -1,0 +1,7 @@
+{
+  "threshold_usd": 180,
+  "period": "monthly",
+  "check_interval": 10,
+  "timezone": "UTC",
+  "progressive": {"low": 50, "mid": 20, "high": 5}
+}

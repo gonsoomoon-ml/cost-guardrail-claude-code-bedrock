@@ -12,14 +12,34 @@ Claude Code plugin that monitors per-IAM-user Amazon Bedrock API costs via Cloud
 .claude-plugin/plugin.json    # Plugin metadata (name: bedrock-cost-guardrail, version, author)
 commands/
   cost-status.md              # /bedrock-cost-guardrail:cost-status — check current spend
-  cost-config.md              # /bedrock-cost-guardrail:cost-config — view/modify threshold
+  cost-config.md              # /bedrock-cost-guardrail:cost-config — view/modify settings
 skills/
   cost-awareness/SKILL.md     # Auto-injected cost context for AI
 hooks/
   hooks.json                  # SessionStart + UserPromptSubmit hooks
-  check-cost.sh               # Core: CW Logs Insights query + cost calc + blocking
-config.json                   # Threshold, pricing, settings
+  check-cost.sh               # Main: event handling, config merge, flow control
+  lib-cost.sh                 # Library: cost calc, CW query, daily state, cache
+config.json                   # Shared base: pricing, log_group, defaults
+
+# Admin-only (not distributed to employees)
+admin/
+  config.admin.json           # Admin policy overrides (threshold, period, interval, timezone)
+  config.dist.json            # Employee defaults (used by release.sh to build dist config)
+scripts/
+  release.sh                  # Publish to marketplace repo
+  preflight.sh                # Prerequisite checker (bash, jq, awk, aws, log group)
+docs/
 ```
+
+## Config Architecture
+
+Three config files, merged at runtime via `jq -s '.[0] * .[1]'`:
+
+- **`config.json`** (shared base): pricing, log_group, default_*_per_1k — maintained once, used by everyone
+- **`admin/config.admin.json`** (admin policy): threshold_usd, period, check_interval, timezone, progressive
+- **`admin/config.dist.json`** (employee defaults): same fields, different values — merged with base during release
+
+check-cost.sh merges base + admin at runtime. release.sh merges base + dist to produce the marketplace config.
 
 ## Key Design Decisions
 
@@ -27,7 +47,9 @@ config.json                   # Threshold, pricing, settings
 - **Plugin hooks vs settings.json hooks**: Plugin `hooks.json` non-zero exit codes do NOT block sessions/prompts. Actual blocking requires `~/.claude/settings.json` hooks. Both are needed: plugin for commands/skills, settings.json for enforcement.
 - **4-type token pricing**: Input, cache_read, cache_write, output each have separate per-model pricing. Cache read is ~10x cheaper than input.
 - **ARN model ID extraction**: Bedrock logs `modelId` as inference profile ARN (`arn:aws:bedrock:.../us.anthropic.claude-opus-4-6-v1`). Script extracts model ID and strips `us.` prefix for config.json pricing lookup.
-- **Counter-based throttling**: `UserPromptSubmit` only queries CloudWatch every Nth prompt (default 10). Counter stored in `/tmp/claude-cost-guardrail-${USER}-counter`.
+- **Daily accumulation** (monthly period): Only queries today's logs, caches previous days' totals in a daily state file. Reduces CloudWatch scan cost ~31x. Weekly full-month reconciliation corrects drift.
+- **Progressive checking**: Adaptive check intervals based on cost proximity to threshold. Low spend (<50%) → every 50 prompts; mid (50-80%) → every 20; high (>80%) → every 5.
+- **Cross-platform**: Uses `awk` instead of `bc` for arithmetic, math-based epoch calculation instead of `date -d`. Works on macOS, Linux, and Windows Git Bash/WSL.
 - **Log group naming**: `aws/` prefix is reserved by AWS. Use `bedrock/model-invocations`.
 - **Admin-only threshold**: `threshold_usd` is not user-modifiable via `/cost-config set`. Users can change `check_interval`, `period`, `timezone` only. Pricing and `log_group` require direct file edit.
 
@@ -41,7 +63,9 @@ config.json                   # Threshold, pricing, settings
 
 - Counter: `/tmp/claude-cost-guardrail-${USER}-counter` (integer, resets each session)
 - Cache: `/tmp/claude-cost-guardrail-${USER}-cache.json` (cost + timestamp, 5-min TTL)
-- Cache bypass: `session_start` and `report` events always query CloudWatch fresh. Only `prompt_submit` uses the 5-min cache.
+- Daily state: `/tmp/claude-cost-guardrail-${USER}-daily.json` (monthly accumulation: finalized days + previous_total + reconciliation timestamp)
+- Merged config: `/tmp/claude-cost-guardrail-${USER}-merged.json` (base + admin, regenerated each run)
+- Cache bypass: `session_start` and `report` events always query CloudWatch fresh. Only `prompt_submit` uses cache.
 - `CLAUDE_PLUGIN_ROOT` env var — set by Claude Code plugin loader, resolves to repo root (where `.claude-plugin/` lives). Used in hooks.json commands and command .md files.
 
 ## Testing
@@ -49,12 +73,16 @@ config.json                   # Threshold, pricing, settings
 ```bash
 # Syntax check
 bash -n hooks/check-cost.sh
+bash -n hooks/lib-cost.sh
 
 # Report mode (queries AWS, never blocks)
 bash hooks/check-cost.sh --event report
 
 # Validate JSON
 find . -name "*.json" -not -path "./.git/*" -exec jq . {} \;
+
+# Prerequisite check
+bash scripts/preflight.sh
 
 # Validate plugin
 claude plugin validate .
@@ -66,7 +94,8 @@ claude plugin validate .
 - Token fields: `input.inputTokenCount`, `input.cacheReadInputTokenCount`, `input.cacheWriteInputTokenCount`, `output.outputTokenCount`
 - Results parsed by field name (not positional index) for robustness against schema changes
 - Model ID lookup chain: exact match in `pricing` → strip `us.` prefix and retry → fall back to `default_*_per_1k`
-- Query polls up to 5 attempts at 3s intervals; on timeout falls back to cache, then fail-open
+- Query polls with progressive backoff (2,2,3,3,3,3,3,3,3 = 25s max); on timeout falls back to cache, then fail-open
+- Daily accumulation: normal queries scan only today's logs; weekly reconciliation scans full month
 
 ## config.json Pricing Format
 
@@ -89,7 +118,8 @@ Models not in pricing table use `default_*_per_1k` values. Pricing is manually m
 
 - Bedrock Model Invocation Logging enabled → CloudWatch Logs
 - AWS CLI v2 with permissions: `logs:StartQuery`, `logs:GetQueryResults`, `sts:GetCallerIdentity`
-- jq, bc installed
+- jq, awk installed (bc is NOT required)
+- Run `bash scripts/preflight.sh` to verify all prerequisites
 
 ## Notes
 
@@ -108,4 +138,4 @@ To publish a new version to the marketplace repo:
     bash scripts/release.sh /path/to/bedrock-cost-guardrail
     cd /path/to/bedrock-cost-guardrail && git add -A && git commit -m "Release vX.Y.Z" && git push
 
-The release script copies plugin files and generates a distribution config.json with safe defaults ($50 threshold).
+The release script merges `config.json` + `admin/config.dist.json` to produce the distribution config ($180 employee threshold).

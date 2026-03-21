@@ -37,7 +37,10 @@
 | **Fail-Open** | 오류 발생 시 "차단"이 아닌 "허용"으로 처리하는 정책. AWS 연결 실패 등 인프라 문제로 개발자가 일을 못 하는 상황을 방지합니다. 반대 개념은 Fail-Close(오류 시 차단)입니다. |
 | **settings.json 훅** | `~/.claude/settings.json`에 등록하는 훅. 플러그인 `hooks.json`의 훅과 달리, non-zero exit code로 실제 차단이 가능합니다. |
 | **check_interval** | 비용 확인 빈도. 값이 10이면 10번째 프롬프트마다 확인합니다. 값을 낮추면 더 자주 확인하지만 AWS API 호출이 증가합니다. |
+| **Progressive Checking** | 비용 근접도에 따라 체크 간격을 자동 조절하는 기능. 비용이 임계값의 50% 미만이면 느슨하게, 80% 이상이면 촘촘하게 확인합니다. `config.json`의 `progressive` 설정으로 제어합니다. |
+| **Daily Accumulation** | CloudWatch 스캔 비용을 줄이기 위한 최적화. 매번 월초부터 쿼리하는 대신, 이전 일자 비용을 캐시하고 오늘 하루치만 쿼리합니다. 월말 기준 ~31배 스캔 절감 효과. |
 | **Cache (비용 캐시)** | CloudWatch 쿼리 결과를 `/tmp/` 파일에 5분간 저장합니다. 같은 시간 내 반복 확인 시 AWS API 호출 없이 캐시된 값을 사용합니다. |
+| **Preflight Check** | `bash scripts/preflight.sh`로 실행하는 사전 점검. bash, jq, awk, AWS CLI, 자격 증명, 로그 그룹 등을 한번에 확인합니다. 플러그인 설치 후 처음 한 번 실행하면 됩니다. |
 
 ## 비용은 어떻게 계산되나요?
 
