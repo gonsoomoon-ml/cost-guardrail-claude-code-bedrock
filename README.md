@@ -486,3 +486,11 @@ aws bedrock put-model-invocation-logging-configuration \
   3. `check_interval` 또는 `progressive` 설정 확인. Progressive 모드에서 비용이 낮으면 50번째마다만 확인.
 - **로그 그룹 생성 시 `aws/` 접두사 오류**: `aws/`는 AWS 예약어. `bedrock/model-invocations` 사용.
 - **macOS에서 동작 안 함**: `bash scripts/preflight.sh` 실행하여 누락 도구 확인. jq, awk는 `brew install`로 설치.
+
+## 삭제
+
+```bash
+bash scripts/uninstall.sh
+```
+
+settings.json 훅 제거, 플러그인 디렉토리 삭제, `/tmp/` 임시 파일 정리를 자동으로 처리합니다.

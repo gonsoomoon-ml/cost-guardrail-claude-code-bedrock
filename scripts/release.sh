@@ -68,6 +68,10 @@ if [[ ! -f "$DIST_OVERRIDE" ]]; then
 fi
 jq -s '.[0] * .[1]' "$SOURCE_ROOT/config.json" "$DIST_OVERRIDE" > "$PLUGIN_DIR/config.json"
 
+# Copy repo-root scripts (install.sh, uninstall.sh)
+echo "[release] Copying repo-root scripts..."
+cp "$SOURCE_ROOT/scripts/uninstall.sh" "$TARGET_DIR/uninstall.sh" 2>/dev/null || true
+
 # Summary
 echo ""
 echo "[release] Done! Files copied to $PLUGIN_DIR:"
