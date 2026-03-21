@@ -530,9 +530,11 @@ git add -A && git commit -m "Test: lower threshold to 100" && git push
 
 직원 Mac/PC에서:
 
+> **참고:** `cd` 경로는 직원이 `git clone`한 위치에 따라 다릅니다. `git clone`을 실행한 디렉토리로 이동하세요. 아래는 홈 디렉토리에 클론한 예시입니다.
+
 ```bash
-# 최신 버전 가져오기
-cd ~/.claude/plugins/bedrock-cost-guardrail
+# 최신 버전 가져오기 (git clone한 디렉토리로 이동)
+cd ~/bedrock-cost-guardrail    # git clone한 실제 경로로 변경
 git pull
 
 # 임시 파일 초기화
@@ -540,10 +542,10 @@ sudo rm -f /tmp/claude-cost-guardrail-*
 
 # 쉘에서 차단 테스트 (모두 Exit: 2여야 정상)
 export AWS_REGION=us-west-2    # Bedrock 로깅 리전
-bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event report 2>&1
+bash hooks/check-cost.sh --event report 2>&1
 for i in 1 2 3; do
   echo "=== Prompt $i ==="
-  bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event prompt_submit 2>&1
+  bash hooks/check-cost.sh --event prompt_submit 2>&1
   echo "Exit: $?"
 done
 
@@ -570,8 +572,10 @@ git add -A && git commit -m "Restore threshold to 180" && git push
 
 ### 13.5. 직원 측 — 차단 해제 확인
 
+> **참고:** `cd` 경로는 직원이 `git clone`한 위치에 따라 다릅니다.
+
 ```bash
-cd ~/.claude/plugins/bedrock-cost-guardrail && git pull
+cd ~/bedrock-cost-guardrail && git pull    # git clone한 실제 경로로 변경
 sudo rm -f /tmp/claude-cost-guardrail-*
 
 # Claude Code에서 정상 사용 확인
