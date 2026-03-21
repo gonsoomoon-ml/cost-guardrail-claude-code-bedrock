@@ -492,6 +492,89 @@ aws bedrock put-model-invocation-logging-configuration \
 - **로그 그룹 생성 시 `aws/` 접두사 오류**: `aws/`는 AWS 예약어. `bedrock/model-invocations` 사용.
 - **macOS에서 동작 안 함**: `bash scripts/preflight.sh` 실행하여 누락 도구 확인. jq, awk는 `brew install`로 설치.
 
+## 차단 테스트 (시뮬레이션)
+
+차단 기능이 정상 동작하는지 확인하는 전체 시뮬레이션입니다.
+
+### 1단계: 현재 비용 확인
+
+```bash
+bash hooks/check-cost.sh --event report 2>&1
+```
+
+출력 예시:
+```
+Estimated cost: $210.30 / $1000 (21.0%)
+Status: Active
+```
+
+### 2단계: 임계값 낮추기
+
+현재 비용보다 낮은 값으로 직원 임계값을 설정합니다 (예: 비용이 $210이면 $100으로):
+
+```bash
+# 직원 임계값 변경
+vi admin/config.dist.json    # threshold_usd를 100으로 변경
+
+# 마켓플레이스 저장소에 배포
+bash scripts/release.sh /path/to/bedrock-cost-guardrail
+
+# 커밋 & 푸시
+cd /path/to/bedrock-cost-guardrail
+git add -A && git commit -m "Test: lower threshold to 100" && git push
+```
+
+### 3단계: 직원 측 — 업데이트 및 차단 확인
+
+직원 Mac/PC에서:
+
+```bash
+# 최신 버전 가져오기
+cd ~/.claude/plugins/bedrock-cost-guardrail
+git pull
+
+# 임시 파일 초기화
+sudo rm -f /tmp/claude-cost-guardrail-*
+
+# 쉘에서 차단 테스트 (모두 Exit: 2여야 정상)
+export AWS_REGION=us-west-2    # Bedrock 로깅 리전
+bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event report 2>&1
+for i in 1 2 3; do
+  echo "=== Prompt $i ==="
+  bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event prompt_submit 2>&1
+  echo "Exit: $?"
+done
+
+# Claude Code에서 차단 테스트
+claude
+# 아무 프롬프트 입력 → "BLOCKED" + "Contact your admin" 메시지 확인
+```
+
+### 4단계: 임계값 복원
+
+```bash
+# 임계값을 원래 값으로 복원
+vi admin/config.dist.json    # threshold_usd를 180으로 변경
+
+# 마켓플레이스 저장소에 배포
+bash scripts/release.sh /path/to/bedrock-cost-guardrail
+
+# 커밋 & 푸시
+cd /path/to/bedrock-cost-guardrail
+git add -A && git commit -m "Restore threshold to 180" && git push
+```
+
+### 5단계: 직원 측 — 차단 해제 확인
+
+```bash
+cd ~/.claude/plugins/bedrock-cost-guardrail && git pull
+sudo rm -f /tmp/claude-cost-guardrail-*
+
+# Claude Code에서 정상 사용 확인
+claude
+# 아무 프롬프트 입력 → 정상 응답 확인
+```
+
 ## 삭제
 
 ```bash
