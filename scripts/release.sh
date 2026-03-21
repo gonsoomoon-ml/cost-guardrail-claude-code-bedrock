@@ -50,10 +50,12 @@ cp "$SOURCE_ROOT/hooks/check-cost.sh"        "$PLUGIN_DIR/hooks/check-cost.sh"
 cp "$SOURCE_ROOT/hooks/lib-cost.sh"          "$PLUGIN_DIR/hooks/lib-cost.sh"
 cp "$SOURCE_ROOT/skills/cost-awareness/SKILL.md" "$PLUGIN_DIR/skills/cost-awareness/SKILL.md"
 
-# Copy screenshot images (referenced by README)
+# Copy screenshot images (referenced by both plugin and repo-root README)
 if [[ -d "$SOURCE_ROOT/img" ]]; then
   echo "[release] Copying images..."
+  mkdir -p "$TARGET_DIR/img"
   cp "$SOURCE_ROOT"/img/*.png "$PLUGIN_DIR/img/" 2>/dev/null || true
+  cp "$SOURCE_ROOT"/img/*.png "$TARGET_DIR/img/" 2>/dev/null || true
 fi
 
 # Generate distribution config.json by merging base + dist overrides
