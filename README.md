@@ -54,13 +54,12 @@ bash scripts/release.sh /path/to/bedrock-cost-guardrail
 
 ## 사용법
 
-### 설정 조회/변경
+### 설정 조회
 ```
 /bedrock-cost-guardrail:cost-config show
-/bedrock-cost-guardrail:cost-config set check_interval 5
 ```
 
-> **참고:** `threshold_usd`(차단 임계값)는 관리자만 변경할 수 있습니다. `admin/config.admin.json`(관리자) 또는 `admin/config.dist.json`(직원 기본값)을 직접 편집하세요.
+> **참고:** `threshold_usd`, `progressive` 등 정책 설정은 `admin/config.admin.json`(관리자) 또는 `admin/config.dist.json`(직원 기본값)을 직접 편집하세요.
 
 ![cost-config 실행 예시](img/cost-config.png)
 
@@ -97,27 +96,34 @@ docs/
 모델 가격표는 한 곳에서 관리하고, 정책은 관리자/직원 별도로 설정합니다:
 
 ```
-config.json (공유)              admin/config.admin.json (관리자)
-┌────────────────────┐          ┌─────────────────────────┐
-│ log_group           │          │ threshold_usd: 1000     │
-│ pricing: {...}      │  merge   │ period: monthly         │
-│ default_*_per_1k    │ ──────►  │ check_interval: 10      │
-└────────────────────┘          │ timezone: Asia/Seoul    │
-        │                        │ progressive: {...}      │
-        │                        └─────────────────────────┘
-        │
-        │  merge   admin/config.dist.json (직원)
-        │          ┌─────────────────────────┐
-        └────────► │ threshold_usd: 180      │
-                   │ period: monthly         │
-                   │ timezone: UTC           │
-                   │ progressive: {...}      │
-                   └─────────────────────────┘
+config.json (공유)                      admin/config.admin.json (관리자)
+┌────────────────────┐                  ┌─────────────────────────┐
+│ log_group           │                  │ threshold_usd: 1000     │
+│ pricing: {...}      │                  │ period: monthly         │
+│ default_*_per_1k    │                  │ check_interval: 10      │
+└─────────┬──────────┘                  │ timezone: Asia/Seoul    │
+          │                              │ progressive: {...}      │
+          │    jq -s '.[0] * .[1]'       └────────────┬────────────┘
+          └──────────────┬────────────────────────────┘
+                         ▼
+              관리자 런타임 설정 (병합 결과)
+
+
+config.json (공유)                      admin/config.dist.json (직원)
+┌────────────────────┐                  ┌─────────────────────────┐
+│ log_group           │                  │ threshold_usd: 180      │
+│ pricing: {...}      │                  │ period: monthly         │
+│ default_*_per_1k    │                  │ timezone: UTC           │
+└─────────┬──────────┘                  │ progressive: {...}      │
+          │    jq -s '.[0] * .[1]'       └────────────┬────────────┘
+          └──────────────┬────────────────────────────┘
+                         ▼
+              직원 배포 config.json (release.sh)
 ```
 
-- **가격 변경**: `config.json`만 수정 → 관리자/직원 모두 반영
+- **가격 변경**: `config.json`만 수정 → 관리자 플러그인, 직원 플러그인 모두 반영
 - **관리자 임계값 변경**: `admin/config.admin.json` 수정
-- **직원 임계값 변경**: `admin/config.dist.json` 수정 → `release.sh` 실행
+- **직원 임계값 변경**: `admin/config.dist.json` 수정 → `release.sh` 실행 → 직원이 `bash install.sh` 재실행 → `/bedrock-cost-guardrail:cost-config show`로 확인
 
 ### 구성 요소
 
