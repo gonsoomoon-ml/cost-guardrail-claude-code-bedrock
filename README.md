@@ -36,7 +36,7 @@ vi admin/config.dist.json     # 직원 기본값
 bash scripts/release.sh /path/to/bedrock-cost-guardrail
 ```
 
-직원이 [마켓플레이스 저장소](https://github.com/gonsoomoon-ml/bedrock-cost-guardrail)에서 `bash install.sh`를 실행하면 자동으로 설치됩니다.
+직원이 [마켓플레이스 저장소](https://github.com/gonsoomoon-ml/bedrock-cost-guardrail)에서 `curl | bash` 한 줄로 설치합니다.
 
 ### 2.4. 비용 확인
 
@@ -123,7 +123,7 @@ config.json (공유)                      admin/config.dist.json (직원)
 
 - **가격 변경**: `config.json`만 수정 → 관리자 플러그인, 직원 플러그인 모두 반영
 - **관리자 임계값 변경**: `admin/config.admin.json` 수정
-- **직원 임계값 변경**: `admin/config.dist.json` 수정 → `release.sh` 실행 → 직원이 `bash install.sh` 재실행 → `/bedrock-cost-guardrail:cost-config show`로 확인
+- **직원 임계값 변경**: `admin/config.dist.json` 수정 → `release.sh` 실행 → 직원이 `curl | bash`로 업데이트 → `/bedrock-cost-guardrail:cost-config show`로 확인
 
 ### 4.3. 구성 요소
 
