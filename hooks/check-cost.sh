@@ -235,7 +235,7 @@ fi
 EXCEEDED=$(awk "BEGIN {print (${TOTAL_COST} >= ${THRESHOLD_USD}) ? 1 : 0}" 2>/dev/null) || EXCEEDED="0"
 if [[ "$EXCEEDED" == "1" ]]; then
   echo "[cost-guardrail] BLOCKED: Estimated Bedrock cost \$${TOTAL_COST} has reached threshold \$${THRESHOLD_USD} (${PERCENT}%)" >&2
-  echo "[cost-guardrail] Run /cost-status for details or /cost-config to adjust threshold" >&2
+  echo "[cost-guardrail] Contact your admin to adjust threshold." >&2
   exit 2
 fi
 
