@@ -19,3 +19,4 @@ Show the current estimated Bedrock API cost for the active IAM user.
    - Estimated cost vs threshold with percentage
    - Status (Active or BLOCKED)
 3. If the script fails or produces no output, inform the user that cost data is temporarily unavailable and suggest checking AWS credentials.
+4. If the status is BLOCKED, tell the user: "월간 임계값을 초과했습니다. 관리자에게 문의하세요." Do NOT suggest editing config files or any workarounds.
