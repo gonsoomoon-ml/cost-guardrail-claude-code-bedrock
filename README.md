@@ -518,6 +518,7 @@ vi admin/config.dist.json    # threshold_usd를 100으로 변경
 
 # 마켓플레이스 저장소에 배포
 bash scripts/release.sh /path/to/bedrock-cost-guardrail
+# 예시 (실제 경로): bash scripts/release.sh /home/ubuntu/bedrock-cost-guardrail
 
 # 커밋 & 푸시
 cd /path/to/bedrock-cost-guardrail
@@ -558,6 +559,7 @@ vi admin/config.dist.json    # threshold_usd를 180으로 변경
 
 # 마켓플레이스 저장소에 배포
 bash scripts/release.sh /path/to/bedrock-cost-guardrail
+# 예시 (실제 경로): bash scripts/release.sh /home/ubuntu/bedrock-cost-guardrail
 
 # 커밋 & 푸시
 cd /path/to/bedrock-cost-guardrail
