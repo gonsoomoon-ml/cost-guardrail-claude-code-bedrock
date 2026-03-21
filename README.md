@@ -600,11 +600,13 @@ settings.json 훅 제거, 플러그인 디렉토리(`~/.claude/plugins/bedrock-c
 
 **관리자** (소스 저장소에서):
 ```bash
+# repo: cost-guardrail-claude-code-bedrock
 bash scripts/uninstall.sh
 ```
 
 **직원** (섹션 13.6 참고):
 ```bash
+# repo: bedrock-cost-guardrail (설치 위치: ~/.claude/plugins/bedrock-cost-guardrail)
 bash ~/.claude/plugins/bedrock-cost-guardrail/uninstall.sh
 ```
 
