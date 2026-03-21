@@ -533,19 +533,18 @@ git add -A && git commit -m "Test: lower threshold to 100" && git push
 직원 Mac/PC에서:
 
 ```bash
-# 최신 버전 가져오기 (install.sh가 항상 이 경로에 설치함)
-cd ~/.claude/plugins/bedrock-cost-guardrail
-git pull
+# 플러그인 업데이트 (git pull만으로는 Claude Code 내부 캐시가 갱신되지 않음 — install.sh 재실행 필요)
+export AWS_REGION=us-west-2    # Bedrock 로깅 리전
+curl -fsSL https://raw.githubusercontent.com/gonsoomoon-ml/bedrock-cost-guardrail/main/install.sh | bash
 
 # 임시 파일 초기화
 sudo rm -f /tmp/claude-cost-guardrail-*
 
 # 쉘에서 차단 테스트 (모두 Exit: 2여야 정상)
-export AWS_REGION=us-west-2    # Bedrock 로깅 리전
-bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event report 2>&1
+bash ~/.claude/plugins/bedrock-cost-guardrail/plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event report 2>&1
 for i in 1 2 3; do
   echo "=== Prompt $i ==="
-  bash plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event prompt_submit 2>&1
+  bash ~/.claude/plugins/bedrock-cost-guardrail/plugins/bedrock-cost-guardrail/hooks/check-cost.sh --event prompt_submit 2>&1
   echo "Exit: $?"
 done
 
@@ -577,7 +576,9 @@ git add -A && git commit -m "Restore threshold to 180" && git push
 ### 13.5. 직원 측 — 차단 해제 확인
 
 ```bash
-cd ~/.claude/plugins/bedrock-cost-guardrail && git pull
+# 플러그인 업데이트 (install.sh 재실행으로 Claude Code 내부 캐시 갱신)
+export AWS_REGION=us-west-2    # Bedrock 로깅 리전
+curl -fsSL https://raw.githubusercontent.com/gonsoomoon-ml/bedrock-cost-guardrail/main/install.sh | bash
 sudo rm -f /tmp/claude-cost-guardrail-*
 
 # Claude Code에서 정상 사용 확인
