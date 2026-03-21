@@ -37,6 +37,6 @@ View or modify the cost guardrail plugin settings.
 6. Confirm the change to the user
 
 ### Restrictions
-- `threshold_usd` is admin-only — not modifiable via this command. Instruct the user to edit `admin/config.admin.json` directly.
-- `pricing`, `log_group`, `default_*_per_1k` are shared infrastructure settings — instruct the user to edit `config.json` directly.
-- `progressive` intervals are admin-only — instruct the user to edit `admin/config.admin.json` directly.
+- `threshold_usd` is admin-only — not modifiable via this command. Tell the user: "threshold_usd는 관리자만 변경할 수 있습니다. 관리자에게 문의하세요." Do NOT guide users to edit config files themselves.
+- `pricing`, `log_group`, `default_*_per_1k` are admin-only infrastructure settings. Tell the user: "관리자에게 문의하세요." Do NOT guide users to edit config files themselves.
+- `progressive` intervals are admin-only. Tell the user: "관리자에게 문의하세요." Do NOT guide users to edit config files themselves.
