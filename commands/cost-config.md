@@ -36,7 +36,9 @@ View or modify the cost guardrail plugin settings.
 5. Preserve all other fields in the target file
 6. Confirm the change to the user
 
-### Restrictions
-- `threshold_usd` is admin-only — not modifiable via this command. Tell the user: "threshold_usd는 관리자만 변경할 수 있습니다. 관리자에게 문의하세요." Do NOT guide users to edit config files themselves.
-- `pricing`, `log_group`, `default_*_per_1k` are admin-only infrastructure settings. Tell the user: "관리자에게 문의하세요." Do NOT guide users to edit config files themselves.
-- `progressive` intervals are admin-only. Tell the user: "관리자에게 문의하세요." Do NOT guide users to edit config files themselves.
+### Restrictions — IMPORTANT
+When a user tries to set a restricted key, you MUST respond with ONLY this message and nothing else. Do NOT suggest editing files, creating directories, or any workarounds.
+
+- `threshold_usd`: respond ONLY with "threshold_usd is admin-only. Contact your admin to change it."
+- `pricing`, `log_group`, `default_*_per_1k`: respond ONLY with "This setting is admin-only. Contact your admin to change it."
+- `progressive`: respond ONLY with "progressive is admin-only. Contact your admin to change it."
