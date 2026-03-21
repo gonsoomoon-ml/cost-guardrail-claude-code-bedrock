@@ -85,7 +85,9 @@ if [[ "$EVENT" == "prompt_submit" ]]; then
     COST_PCT=$(awk "BEGIN {printf \"%.0f\", ${LAST_COST} * 100 / ${THRESHOLD_USD}}" 2>/dev/null) || COST_PCT="0"
     PROG_MID=$(jq -r '.progressive.mid // 20' "$MERGED_CONFIG_FILE" 2>/dev/null) || PROG_MID="20"
     PROG_HIGH=$(jq -r '.progressive.high // 5' "$MERGED_CONFIG_FILE" 2>/dev/null) || PROG_HIGH="5"
-    if [[ "$COST_PCT" -lt 50 ]]; then
+    if [[ "$COST_PCT" -ge 100 ]]; then
+      EFFECTIVE_INTERVAL=1
+    elif [[ "$COST_PCT" -lt 50 ]]; then
       EFFECTIVE_INTERVAL="$PROG_LOW"
     elif [[ "$COST_PCT" -lt 80 ]]; then
       EFFECTIVE_INTERVAL="$PROG_MID"
