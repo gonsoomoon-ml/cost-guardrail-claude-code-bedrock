@@ -514,8 +514,7 @@ settings.json 훅 제거, 플러그인 디렉토리 삭제, `/tmp/` 임시 파�
 
 ```bash
 # repo: cost-guardrail-claude-code-bedrock (관리자 소스 저장소)
-cd /path/to/cost-guardrail-claude-code-bedrock
-# 예시 (실제 경로): cd /home/ubuntu/cost-guardrail-claude-code-bedrock
+cd /home/ubuntu/cost-guardrail-claude-code-bedrock
 
 bash hooks/check-cost.sh --event report 2>&1
 ```
@@ -531,21 +530,16 @@ Status: Active
 현재 비용보다 낮은 값으로 직원 임계값을 설정합니다 (예: 비용이 $210이면 $100으로):
 
 ```bash
-# 소스 저장소로 이동
-cd /path/to/cost-guardrail-claude-code-bedrock
-# 예시 (실제 경로): cd /home/ubuntu/cost-guardrail-claude-code-bedrock
+# 소스 저장소로 이동 (repo: cost-guardrail-claude-code-bedrock)
+cd /home/ubuntu/cost-guardrail-claude-code-bedrock
 
 # 직원 임계값 변경
 vi admin/config.dist.json    # threshold_usd를 100으로 변경
 
-# 마켓플레이스 저장소에 배포
-bash scripts/release.sh /path/to/bedrock-cost-guardrail
-# 예시 (실제 경로): bash scripts/release.sh /home/ubuntu/bedrock-cost-guardrail
-
-# 커밋 & 푸시
-cd /path/to/bedrock-cost-guardrail
-# 예시 (실제 경로): cd /home/ubuntu/bedrock-cost-guardrail
-git add -A && git commit -m "Test: lower threshold to 100" && git push
+# 마켓플레이스 저장소에 배포 & 커밋 & 푸시 (repo: bedrock-cost-guardrail)
+bash scripts/release.sh /home/ubuntu/bedrock-cost-guardrail && \
+  cd /home/ubuntu/bedrock-cost-guardrail && \
+  git add -A && git commit -m "Test: lower threshold to 100" && git push
 ```
 
 ### 14.3. 직원 측 — 업데이트 및 차단 확인
@@ -576,21 +570,16 @@ claude
 ### 14.4. 임계값 복원
 
 ```bash
-# 소스 저장소로 이동
-cd /path/to/cost-guardrail-claude-code-bedrock
-# 예시 (실제 경로): cd /home/ubuntu/cost-guardrail-claude-code-bedrock
+# 소스 저장소로 이동 (repo: cost-guardrail-claude-code-bedrock)
+cd /home/ubuntu/cost-guardrail-claude-code-bedrock
 
 # 임계값을 원래 값으로 복원
 vi admin/config.dist.json    # threshold_usd를 180으로 변경
 
-# 마켓플레이스 저장소에 배포
-bash scripts/release.sh /path/to/bedrock-cost-guardrail
-# 예시 (실제 경로): bash scripts/release.sh /home/ubuntu/bedrock-cost-guardrail
-
-# 커밋 & 푸시
-cd /path/to/bedrock-cost-guardrail
-# 예시 (실제 경로): cd /home/ubuntu/bedrock-cost-guardrail
-git add -A && git commit -m "Restore threshold to 180" && git push
+# 마켓플레이스 저장소에 배포 & 커밋 & 푸시 (repo: bedrock-cost-guardrail)
+bash scripts/release.sh /home/ubuntu/bedrock-cost-guardrail && \
+  cd /home/ubuntu/bedrock-cost-guardrail && \
+  git add -A && git commit -m "Restore threshold to 180" && git push
 ```
 
 ### 14.5. 직원 측 — 차단 해제 확인
