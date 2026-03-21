@@ -290,10 +290,8 @@ Platform: linux (aarch64)
 > **터미널 열기:** macOS → Terminal 앱, Windows → Git Bash 앱, Linux → Terminal
 
 ```bash
-git clone https://github.com/gonsoomoon-ml/bedrock-cost-guardrail.git
-cd bedrock-cost-guardrail
 export AWS_REGION=<관리자에게 확인>    # Bedrock Model Invocation Logging이 활성화된 리전 (예: us-east-1, us-west-2, ap-northeast-2)
-bash install.sh
+curl -fsSL https://raw.githubusercontent.com/gonsoomoon-ml/bedrock-cost-guardrail/main/install.sh | bash
 ```
 
 `install.sh`가 사전 요구사항 점검, 마켓플레이스 등록, 플러그인 설치, settings.json 훅 등록, 설치 검증을 모두 자동으로 처리합니다. 자세한 내용은 [마켓플레이스 저장소 README](https://github.com/gonsoomoon-ml/bedrock-cost-guardrail)를 참고하세요.
@@ -534,11 +532,9 @@ git add -A && git commit -m "Test: lower threshold to 100" && git push
 
 직원 Mac/PC에서:
 
-> **참고:** `cd` 경로는 직원이 `git clone`한 위치에 따라 다릅니다. `git clone`을 실행한 디렉토리로 이동하세요. 아래는 홈 디렉토리에 클론한 예시입니다.
-
 ```bash
-# 최신 버전 가져오기 (git clone한 디렉토리로 이동)
-cd ~/bedrock-cost-guardrail    # git clone한 실제 경로로 변경
+# 최신 버전 가져오기 (install.sh가 항상 이 경로에 설치함)
+cd ~/.claude/plugins/bedrock-cost-guardrail
 git pull
 
 # 임시 파일 초기화
@@ -580,10 +576,8 @@ git add -A && git commit -m "Restore threshold to 180" && git push
 
 ### 13.5. 직원 측 — 차단 해제 확인
 
-> **참고:** `cd` 경로는 직원이 `git clone`한 위치에 따라 다릅니다.
-
 ```bash
-cd ~/bedrock-cost-guardrail && git pull    # git clone한 실제 경로로 변경
+cd ~/.claude/plugins/bedrock-cost-guardrail && git pull
 sudo rm -f /tmp/claude-cost-guardrail-*
 
 # Claude Code에서 정상 사용 확인
