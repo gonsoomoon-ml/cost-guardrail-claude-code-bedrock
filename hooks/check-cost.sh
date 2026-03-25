@@ -162,16 +162,28 @@ if [[ -z "$TOTAL_COST" ]]; then
     fi
   fi
 
+  # --- 보정 쿼리 (monthly + reconciliation) ---
+  # 월초 → 오늘 자정 범위만 쿼리하여 previous_total을 갱신합니다.
+  # 오늘치 비용은 아래 normal path에서 별도 쿼리로 누산합니다.
+  if [[ "$PERIOD" == "monthly" && "$USE_FULL_QUERY" == "true" ]]; then
+    DAY=$(TZ="$TIMEZONE" date +%d)
+    MONTH_START_EPOCH=$(( TODAY_START - (10#$DAY - 1) * 86400 ))
+    RECON_RESULTS=$(run_cw_query "$MONTH_START_EPOCH" "$TODAY_START")
+    if [[ -n "$RECON_RESULTS" ]]; then
+      RECON_COST=$(calculate_cost_from_results "$RECON_RESULTS")
+      # previous_total을 보정값으로 갱신, days 리셋 (보정값이 모든 이전 일자 포함)
+      jq --argjson c "$RECON_COST" '.previous_total = $c | .days = {}' \
+        "$DAILY_FILE" > "${DAILY_FILE}.tmp" 2>/dev/null && mv "${DAILY_FILE}.tmp" "$DAILY_FILE"
+      PREV_TOTAL="$RECON_COST"
+    fi
+  fi
+
   # --- 쿼리 시간 범위 결정 ---
   if [[ "$PERIOD" == "daily" ]]; then
     # daily: 오늘 00:00 → 현재
     START_TIME=$TODAY_START
-  elif [[ "$USE_FULL_QUERY" == "true" ]]; then
-    # 보정 쿼리: 월초 → 현재 (전체 스캔)
-    DAY=$(TZ="$TIMEZONE" date +%d)
-    START_TIME=$(( TODAY_START - (10#$DAY - 1) * 86400 ))
   else
-    # 일별 누적: 오늘 00:00 → 현재 (하루치만 스캔 — 31배 절감)
+    # monthly (보정 포함): 오늘 00:00 → 현재 (하루치만 스캔)
     START_TIME=$TODAY_START
   fi
   END_TIME=$NOW_EPOCH
@@ -194,11 +206,8 @@ if [[ -z "$TOTAL_COST" ]]; then
     if [[ "$PERIOD" == "daily" ]]; then
       # daily: 쿼리 결과가 곧 총 비용
       TOTAL_COST="$QUERY_COST"
-    elif [[ "$USE_FULL_QUERY" == "true" ]]; then
-      # 보정: 전체 월 쿼리 결과가 곧 총 비용
-      TOTAL_COST="$QUERY_COST"
     else
-      # 일별 누적: 이전 일자 합계 + 오늘 비용
+      # monthly (보정 포함): 이전 일자 합계 + 오늘 비용
       TOTAL_COST=$(awk "BEGIN {printf \"%.5f\", ${PREV_TOTAL} + ${QUERY_COST}}" 2>/dev/null) || TOTAL_COST="$QUERY_COST"
     fi
 

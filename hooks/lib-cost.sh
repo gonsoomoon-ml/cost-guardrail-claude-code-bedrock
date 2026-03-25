@@ -146,7 +146,7 @@ init_daily_state() {
     file_month=$(jq -r '.month // ""' "$DAILY_FILE" 2>/dev/null) || file_month=""
   fi
   if [[ "$file_month" != "$CURRENT_MONTH" ]]; then
-    echo "{\"month\":\"${CURRENT_MONTH}\",\"days\":{},\"previous_total\":0,\"last_reconcile\":$(date +%s)}" \
+    echo "{\"month\":\"${CURRENT_MONTH}\",\"days\":{},\"previous_total\":0,\"last_reconcile\":0}" \
       > "$DAILY_FILE" 2>/dev/null || true
   fi
 }
